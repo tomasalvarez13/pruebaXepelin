@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Country {
+  CL
+  MX
+}
+
+enum Segment {
+  PYME
+  MIDMARKET
+  CORPORATE
+}
+
+enum Lifecycle {
+  ENROLADO
+  ACTIVO
+  RECURRENTE
+}
+
+enum ChurnRisk {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum OperationType {
+  FACTORING
+  CONFIRMING
+  PAGO
+}
+
+enum OperationStatus {
+  PAGADA
+  PENDIENTE
+  VENCIDA
+}
+
+enum InteractionChannel {
+  WHATSAPP
+  CALL
+  EMAIL
+  MEETING
+}
+
+model Kam {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  companies Company[]
+  createdAt DateTime  @default(now())
+}
+
+model Company {
+  id             String    @id @default(cuid())
+  kamId          String
+  kam            Kam       @relation(fields: [kamId], references: [id])
+
+  legalName      String
+  taxId          String    @unique
+  industry       String
+  country        Country
+  segment        Segment
+  lifecycleStage Lifecycle
+  status         String    @default("active")
+  onboardedAt    DateTime
+
+  creditLineApproved Decimal @db.Decimal(14, 2)
+  creditLineUsed     Decimal @db.Decimal(14, 2)
+  monthlyBilling     Decimal @db.Decimal(14, 2)
+
+  notes String? @db.Text
+
+  healthScore        Int?
+  churnRisk          ChurnRisk?
+  aiSummary          String?    @db.Text
+  recommendedActions Json?
+  aiGeneratedAt      DateTime?
+
+  operations   Operation[]
+  interactions Interaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kamId])
+}
+
+model Operation {
+  id          String          @id @default(cuid())
+  companyId   String
+  company     Company         @relation(fields: [companyId], references: [id])
+  type        OperationType
+  amount      Decimal         @db.Decimal(14, 2)
+  date        DateTime
+  status      OperationStatus
+  daysPastDue Int             @default(0)
+
+  @@index([companyId, date])
+}
+
+model Interaction {
+  id        String             @id @default(cuid())
+  companyId String
+  company   Company            @relation(fields: [companyId], references: [id])
+  channel   InteractionChannel
+  date      DateTime
+  summary   String             @db.Text
+
+  @@index([companyId, date])
+}
