@@ -1,7 +1,7 @@
 "use client";
 
 import { MantineProvider, createTheme } from "@mantine/core";
-import { SessionProvider } from "next-auth/react";
+import { AuthProvider } from "@/lib/auth-context";
 
 const theme = createTheme({
   primaryColor: "indigo",
@@ -14,8 +14,8 @@ const theme = createTheme({
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider>
+    <AuthProvider>
       <MantineProvider theme={theme}>{children}</MantineProvider>
-    </SessionProvider>
+    </AuthProvider>
   );
 }

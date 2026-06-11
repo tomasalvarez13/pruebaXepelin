@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useAuth } from "@/lib/auth-context";
 import { useParams, useRouter } from "next/navigation";
 import {
   BarChart,
@@ -162,7 +162,7 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 };
 
 export default function CompanyDetailPage() {
-  const { data: session, status } = useSession();
+  const { kam, token, status, logout } = useAuth();
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -175,11 +175,17 @@ export default function CompanyDetailPage() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/login");
+    }
+  }, [status, router]);
+
   const fetchCompany = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiFetch<CompanyDetail>(`/companies/${id}`);
+      const data = await apiFetch<CompanyDetail>(`/companies/${id}`, token);
       setCompany(data);
       setNotes(data.notes || "");
       setStatusVal(data.status);
@@ -188,7 +194,7 @@ export default function CompanyDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, token]);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -200,7 +206,7 @@ export default function CompanyDetailPage() {
     setSaving(true);
     setSaveMsg(null);
     try {
-      await apiFetch(`/companies/${id}`, {
+      await apiFetch(`/companies/${id}`, token, {
         method: "PATCH",
         body: JSON.stringify({ notes, status: statusVal }),
       });
@@ -213,8 +219,6 @@ export default function CompanyDetailPage() {
     }
   };
 
-  const userName = (session?.user as Record<string, unknown>)?.name as string;
-
   if (loading) {
     return (
       <>
@@ -224,7 +228,7 @@ export default function CompanyDetailPage() {
             Xepelin CRM
           </div>
           <div className="nav-right">
-            <span className="nav-user">{userName}</span>
+            <span className="nav-user">{kam?.name}</span>
           </div>
         </nav>
         <div className="loading-container">
@@ -266,8 +270,8 @@ export default function CompanyDetailPage() {
           Xepelin CRM
         </div>
         <div className="nav-right">
-          <span className="nav-user">{userName}</span>
-          <button className="nav-logout" onClick={() => signOut()}>
+          <span className="nav-user">{kam?.name}</span>
+          <button className="nav-logout" onClick={logout}>
             Cerrar sesión
           </button>
         </div>

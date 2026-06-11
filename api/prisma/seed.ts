@@ -1,4 +1,5 @@
 import { PrismaClient, Country, Segment, Lifecycle, OperationType, OperationStatus, InteractionChannel } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -15,11 +16,14 @@ async function main() {
   await prisma.company.deleteMany();
   await prisma.kam.deleteMany();
 
+  const hash1 = await bcrypt.hash('maria123', 10);
+  const hash2 = await bcrypt.hash('carlos123', 10);
+
   const kam1 = await prisma.kam.create({
-    data: { name: 'María González', email: 'demo@xepelin.com' },
+    data: { name: 'María González', email: 'maria@xepelin.com', password: hash1 },
   });
   const kam2 = await prisma.kam.create({
-    data: { name: 'Carlos Mendoza', email: 'carlos@xepelin.com' },
+    data: { name: 'Carlos Mendoza', email: 'carlos@xepelin.com', password: hash2 },
   });
 
   // 1. Churn evidente — Kam1

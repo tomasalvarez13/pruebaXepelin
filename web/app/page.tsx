@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useSession, signIn, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api-client";
 import { CompanyListItem } from "@/lib/types";
 import {
@@ -63,7 +63,7 @@ const lifecycleConfig: Record<string, string> = {
 };
 
 export default function HomePage() {
-  const { data: session, status } = useSession();
+  const { kam, token, status, logout } = useAuth();
   const router = useRouter();
   const [companies, setCompanies] = useState<CompanyListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,13 +71,11 @@ export default function HomePage() {
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("priority");
 
-  const isAuthMock = process.env.NEXT_PUBLIC_AUTH_MODE === "mock";
-
   useEffect(() => {
-    if (status === "unauthenticated" && isAuthMock) {
-      signIn("credentials", { redirect: false });
+    if (status === "unauthenticated") {
+      router.replace("/login");
     }
-  }, [status, isAuthMock]);
+  }, [status, router]);
 
   const fetchCompanies = useCallback(async () => {
     try {
@@ -89,7 +87,7 @@ export default function HomePage() {
         params.set("filter", filter === "risk" ? "at_risk" : "expansion");
       const qs = params.toString();
       const data = await apiFetch<CompanyListItem[]>(
-        `/companies${qs ? `?${qs}` : ""}`
+        `/companies${qs ? `?${qs}` : ""}`, token
       );
       setCompanies(data);
     } catch (err) {
@@ -97,7 +95,7 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }, [sort, filter]);
+  }, [sort, filter, token]);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -121,20 +119,9 @@ export default function HomePage() {
     );
   }
 
-  if (status === "unauthenticated" && !isAuthMock) {
-    return (
-      <div className="login-card animate-fade-in">
-        <div className="nav-logo-icon" style={{ margin: "0 auto 20px", width: 48, height: 48, fontSize: 22 }}>X</div>
-        <div className="login-title">Xepelin CRM</div>
-        <div className="login-subtitle">Inicia sesión para acceder a tu cartera</div>
-        <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }} onClick={() => signIn("google")}>
-          Iniciar sesión con Google
-        </button>
-      </div>
-    );
+  if (status === "unauthenticated") {
+    return null;
   }
-
-  const userName = (session?.user as Record<string, unknown>)?.name as string;
 
   return (
     <div className="animate-fade-in">
@@ -145,8 +132,8 @@ export default function HomePage() {
           Xepelin CRM
         </div>
         <div className="nav-right">
-          <span className="nav-user">{userName}</span>
-          <button className="nav-logout" onClick={() => signOut()}>
+          <span className="nav-user">{kam?.name}</span>
+          <button className="nav-logout" onClick={logout}>
             Cerrar sesión
           </button>
         </div>

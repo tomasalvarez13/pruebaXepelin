@@ -1,11 +1,6 @@
-import { getSession } from 'next-auth/react';
-
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const session = await getSession() as Record<string, unknown> | null;
-  const token = session?.backendToken as string | undefined;
-
+export async function apiFetch<T>(path: string, token: string | null, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
