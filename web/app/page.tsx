@@ -1,45 +1,37 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
-import {
-  Container,
-  Title,
-  Table,
-  Badge,
-  Group,
-  Text,
-  SegmentedControl,
-  Select,
-  Loader,
-  Alert,
-  Button,
-  Flex,
-  Card,
-} from "@mantine/core";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api-client";
 import { CompanyListItem } from "@/lib/types";
+import {
+  IconBuildingBank,
+  IconTrendingUp,
+  IconAlertTriangle,
+  IconRocket,
+  IconChevronRight,
+} from "@tabler/icons-react";
 
-const priorityColors: Record<string, string> = {
-  ALTA: "red",
-  MEDIA: "yellow",
-  BAJA: "green",
-};
+const avatarColors = [
+  "#4F46E5", "#0891B2", "#7C3AED", "#059669",
+  "#D97706", "#DC2626", "#2563EB", "#9333EA",
+  "#0D9488", "#C026D3",
+];
 
-const riskColors: Record<string, string> = {
-  HIGH: "red",
-  MEDIUM: "orange",
-  LOW: "green",
-};
-
-const lifecycleColors: Record<string, string> = {
-  ENROLADO: "blue",
-  ACTIVO: "teal",
-  RECURRENTE: "violet",
-};
+function getAvatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return avatarColors[Math.abs(hash) % avatarColors.length];
+}
 
 function formatCurrency(n: number): string {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}k`;
+  return `$${n.toFixed(0)}`;
+}
+
+function formatCurrencyFull(n: number): string {
   return new Intl.NumberFormat("es-CL", {
     style: "currency",
     currency: "CLP",
@@ -52,25 +44,23 @@ function formatPct(n: number | null): string {
   return `${Math.round(n * 100)}%`;
 }
 
-function TrendArrow({ pct }: { pct: number }) {
-  if (pct > 0.05)
-    return (
-      <Text span c="green" fw={700}>
-        ↑ {Math.round(pct * 100)}%
-      </Text>
-    );
-  if (pct < -0.05)
-    return (
-      <Text span c="red" fw={700}>
-        ↓ {Math.abs(Math.round(pct * 100))}%
-      </Text>
-    );
-  return (
-    <Text span c="dimmed">
-      → {Math.round(pct * 100)}%
-    </Text>
-  );
-}
+const priorityConfig: Record<string, { class: string; label: string }> = {
+  ALTA: { class: "badge-red", label: "Alta" },
+  MEDIA: { class: "badge-yellow", label: "Media" },
+  BAJA: { class: "badge-green", label: "Baja" },
+};
+
+const riskConfig: Record<string, { dotClass: string; label: string }> = {
+  HIGH: { dotClass: "red", label: "Alto" },
+  MEDIUM: { dotClass: "yellow", label: "Medio" },
+  LOW: { dotClass: "green", label: "Bajo" },
+};
+
+const lifecycleConfig: Record<string, string> = {
+  ENROLADO: "badge-blue",
+  ACTIVO: "badge-green",
+  RECURRENTE: "badge-violet",
+};
 
 export default function HomePage() {
   const { data: session, status } = useSession();
@@ -103,9 +93,7 @@ export default function HomePage() {
       );
       setCompanies(data);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Error cargando empresas"
-      );
+      setError(err instanceof Error ? err.message : "Error cargando empresas");
     } finally {
       setLoading(false);
     }
@@ -117,162 +105,229 @@ export default function HomePage() {
     }
   }, [status, fetchCompanies]);
 
+  const kpis = useMemo(() => {
+    const total = companies.length;
+    const totalVolume = companies.reduce((s, c) => s + c.signals.financedVolume90d, 0);
+    const atRisk = companies.filter((c) => c.signals.churnRisk === "HIGH").length;
+    const expansion = companies.filter((c) => c.signals.expansion).length;
+    return { total, totalVolume, atRisk, expansion };
+  }, [companies]);
+
   if (status === "loading") {
     return (
-      <Container py="xl" ta="center">
-        <Loader size="lg" />
-      </Container>
+      <div className="loading-container">
+        <div className="spinner" />
+      </div>
     );
   }
 
   if (status === "unauthenticated" && !isAuthMock) {
     return (
-      <Container py="xl" ta="center">
-        <Card shadow="sm" p="xl" maw={400} mx="auto">
-          <Title order={2} mb="md">
-            Xepelin CRM
-          </Title>
-          <Text c="dimmed" mb="lg">
-            Inicia sesión para acceder a tu cartera
-          </Text>
-          <Button onClick={() => signIn("google")} fullWidth>
-            Iniciar sesión con Google
-          </Button>
-        </Card>
-      </Container>
+      <div className="login-card animate-fade-in">
+        <div className="nav-logo-icon" style={{ margin: "0 auto 20px", width: 48, height: 48, fontSize: 22 }}>X</div>
+        <div className="login-title">Xepelin CRM</div>
+        <div className="login-subtitle">Inicia sesión para acceder a tu cartera</div>
+        <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }} onClick={() => signIn("google")}>
+          Iniciar sesión con Google
+        </button>
+      </div>
     );
   }
 
+  const userName = (session?.user as Record<string, unknown>)?.name as string;
+
   return (
-    <Container size="xl" py="md">
-      <Flex justify="space-between" align="center" mb="md">
-        <Title order={2}>Mi Cartera</Title>
-        <Group>
-          <Text size="sm" c="dimmed">
-            {(session?.user as Record<string, unknown>)?.name as string}
-          </Text>
-          <Button variant="subtle" size="xs" onClick={() => signOut()}>
+    <div className="animate-fade-in">
+      {/* Nav */}
+      <nav className="nav-bar">
+        <div className="nav-logo">
+          <div className="nav-logo-icon">X</div>
+          Xepelin CRM
+        </div>
+        <div className="nav-right">
+          <span className="nav-user">{userName}</span>
+          <button className="nav-logout" onClick={() => signOut()}>
             Cerrar sesión
-          </Button>
-        </Group>
-      </Flex>
+          </button>
+        </div>
+      </nav>
 
-      <Group mb="md">
-        <SegmentedControl
-          value={filter}
-          onChange={setFilter}
-          data={[
-            { label: "Todos", value: "all" },
-            { label: "En riesgo", value: "risk" },
-            { label: "Oportunidad", value: "expansion" },
-          ]}
-        />
-        <Select
-          value={sort}
-          onChange={(v) => setSort(v || "priority")}
-          data={[
-            { label: "Prioridad", value: "priority" },
-            { label: "Riesgo", value: "risk" },
-            { label: "Volumen", value: "volume" },
-          ]}
-          w={150}
-        />
-      </Group>
+      <div className="page-container">
+        <h1 className="page-title">Mi Cartera</h1>
 
-      {error && (
-        <Alert color="red" mb="md" title="Error">
-          {error}
-        </Alert>
-      )}
+        {/* KPIs */}
+        {!loading && companies.length > 0 && (
+          <div className="kpi-grid animate-slide-up">
+            <div className="kpi-card">
+              <div className="kpi-icon" style={{ background: "#EEF2FF", color: "#4F46E5" }}>
+                <IconBuildingBank size={20} />
+              </div>
+              <div className="kpi-label">Total empresas</div>
+              <div className="kpi-value">{kpis.total}</div>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-icon" style={{ background: "#DCFCE7", color: "#15803D" }}>
+                <IconTrendingUp size={20} />
+              </div>
+              <div className="kpi-label">Volumen financiado 90d</div>
+              <div className="kpi-value">{formatCurrency(kpis.totalVolume)}</div>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-icon" style={{ background: "#FEE2E2", color: "#DC2626" }}>
+                <IconAlertTriangle size={20} />
+              </div>
+              <div className="kpi-label">En riesgo</div>
+              <div className="kpi-value">{kpis.atRisk}</div>
+              {kpis.atRisk > 0 && (
+                <span className="kpi-change negative">Requieren atención</span>
+              )}
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-icon" style={{ background: "#EDE9FE", color: "#7C3AED" }}>
+                <IconRocket size={20} />
+              </div>
+              <div className="kpi-label">Oportunidades</div>
+              <div className="kpi-value">{kpis.expansion}</div>
+              {kpis.expansion > 0 && (
+                <span className="kpi-change positive">Expansión posible</span>
+              )}
+            </div>
+          </div>
+        )}
 
-      {loading ? (
-        <Loader display="block" mx="auto" mt="xl" />
-      ) : companies.length === 0 ? (
-        <Alert color="gray" title="Sin empresas">
-          No hay empresas que mostrar con los filtros seleccionados.
-        </Alert>
-      ) : (
-        <Table striped highlightOnHover withTableBorder>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Empresa</Table.Th>
-              <Table.Th>País</Table.Th>
-              <Table.Th>Lifecycle</Table.Th>
-              <Table.Th>Prioridad</Table.Th>
-              <Table.Th>Vol. 90d</Table.Th>
-              <Table.Th>Tendencia</Table.Th>
-              <Table.Th>SOW</Table.Th>
-              <Table.Th>Riesgo</Table.Th>
-              <Table.Th>Últ. interacción</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {companies.map((c) => (
-              <Table.Tr
+        {/* Filters */}
+        <div className="filter-bar">
+          <div className="filter-tabs">
+            {[
+              { value: "all", label: "Todos" },
+              { value: "risk", label: "En riesgo" },
+              { value: "expansion", label: "Oportunidad" },
+            ].map((tab) => (
+              <button
+                key={tab.value}
+                className={`filter-tab ${filter === tab.value ? "active" : ""}`}
+                onClick={() => setFilter(tab.value)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <select
+            className="sort-select"
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+          >
+            <option value="priority">Prioridad</option>
+            <option value="risk">Riesgo</option>
+            <option value="volume">Volumen</option>
+          </select>
+        </div>
+
+        {error && <div className="error-alert">{error}</div>}
+
+        {/* Table */}
+        {loading ? (
+          <div className="loading-container">
+            <div className="spinner" />
+          </div>
+        ) : companies.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">📋</div>
+            <div className="empty-state-text">
+              No hay empresas con los filtros seleccionados
+            </div>
+          </div>
+        ) : (
+          <div className="company-table animate-slide-up">
+            <div className="company-table-header">
+              <span>Empresa</span>
+              <span>País</span>
+              <span>Lifecycle</span>
+              <span>Prioridad</span>
+              <span>Vol. 90d</span>
+              <span>SOW</span>
+              <span>Riesgo</span>
+              <span>Contacto</span>
+            </div>
+            {companies.map((c, i) => (
+              <div
                 key={c.id}
-                style={{ cursor: "pointer" }}
+                className="company-row"
+                style={{ animationDelay: `${i * 30}ms` }}
                 onClick={() => router.push(`/companies/${c.id}`)}
               >
-                <Table.Td>
-                  <Text fw={600} size="sm">
-                    {c.legalName}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {c.industry}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Badge variant="light" size="sm">
-                    {c.country}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Badge
-                    color={lifecycleColors[c.lifecycleStage] || "gray"}
-                    variant="light"
-                    size="sm"
+                {/* Company info */}
+                <div className="company-info">
+                  <div
+                    className="company-avatar"
+                    style={{ background: getAvatarColor(c.legalName) }}
                   >
+                    {c.legalName.charAt(0)}
+                  </div>
+                  <div>
+                    <div className="company-name">{c.legalName}</div>
+                    <div className="company-industry">{c.industry}</div>
+                  </div>
+                </div>
+
+                {/* Country */}
+                <div>
+                  <span className="badge badge-gray">{c.country}</span>
+                </div>
+
+                {/* Lifecycle */}
+                <div>
+                  <span className={`badge ${lifecycleConfig[c.lifecycleStage] || "badge-gray"}`}>
                     {c.lifecycleStage}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Badge
-                    color={priorityColors[c.signals.priorityLabel]}
-                    variant="filled"
-                    size="sm"
-                  >
-                    {c.signals.priorityLabel}
-                  </Badge>
-                  <Text size="xs" c="dimmed" mt={2}>
-                    {c.signals.priorityReason}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  {formatCurrency(c.signals.financedVolume90d)}
-                </Table.Td>
-                <Table.Td>
-                  <TrendArrow pct={c.signals.volumeTrendPct} />
-                </Table.Td>
-                <Table.Td>{formatPct(c.signals.sowPct)}</Table.Td>
-                <Table.Td>
-                  <Badge
-                    color={riskColors[c.signals.churnRisk]}
-                    variant="dot"
-                    size="sm"
-                  >
-                    {c.signals.churnRisk}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  {c.daysSinceLastInteraction !== null
-                    ? `${c.daysSinceLastInteraction}d`
-                    : "—"}
-                </Table.Td>
-              </Table.Tr>
+                  </span>
+                </div>
+
+                {/* Priority */}
+                <div>
+                  <span className={`badge ${priorityConfig[c.signals.priorityLabel]?.class || "badge-gray"}`}>
+                    {priorityConfig[c.signals.priorityLabel]?.label || c.signals.priorityLabel}
+                  </span>
+                </div>
+
+                {/* Volume */}
+                <div>
+                  <div className="cell-value">
+                    {formatCurrencyFull(c.signals.financedVolume90d)}
+                  </div>
+                  <span className={`cell-trend ${c.signals.volumeTrendPct > 0.05 ? "up" : c.signals.volumeTrendPct < -0.05 ? "down" : "flat"}`}>
+                    {c.signals.volumeTrendPct > 0.05
+                      ? `↑ ${Math.round(c.signals.volumeTrendPct * 100)}%`
+                      : c.signals.volumeTrendPct < -0.05
+                        ? `↓ ${Math.abs(Math.round(c.signals.volumeTrendPct * 100))}%`
+                        : `→ ${Math.round(c.signals.volumeTrendPct * 100)}%`}
+                  </span>
+                </div>
+
+                {/* SOW */}
+                <div className="cell-secondary">{formatPct(c.signals.sowPct)}</div>
+
+                {/* Risk */}
+                <div>
+                  <span className="badge badge-gray" style={{ gap: 6 }}>
+                    <span className={`badge-dot ${riskConfig[c.signals.churnRisk]?.dotClass}`} />
+                    {riskConfig[c.signals.churnRisk]?.label || c.signals.churnRisk}
+                  </span>
+                </div>
+
+                {/* Last interaction */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span className="cell-secondary">
+                    {c.daysSinceLastInteraction !== null
+                      ? `${c.daysSinceLastInteraction}d`
+                      : "—"}
+                  </span>
+                  <IconChevronRight size={16} color="#CBD5E1" />
+                </div>
+              </div>
             ))}
-          </Table.Tbody>
-        </Table>
-      )}
-    </Container>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

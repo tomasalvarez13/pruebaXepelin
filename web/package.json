@@ -12,6 +12,7 @@
     "@mantine/core": "7.15",
     "@mantine/hooks": "7.15",
     "@mantine/notifications": "7.15",
+    "@tabler/icons-react": "^3.44.0",
     "jsonwebtoken": "^9.0.3",
     "next": "14.2.35",
     "next-auth": "^4.24.14",

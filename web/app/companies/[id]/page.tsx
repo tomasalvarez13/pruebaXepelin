@@ -1,25 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
-import {
-  Container,
-  Title,
-  Text,
-  Badge,
-  Group,
-  Grid,
-  Card,
-  Table,
-  Textarea,
-  Button,
-  Loader,
-  Alert,
-  Timeline,
-  Select,
-  Flex,
-} from "@mantine/core";
 import {
   BarChart,
   Bar,
@@ -28,22 +11,39 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  AreaChart,
+  Area,
 } from "recharts";
 import { apiFetch } from "@/lib/api-client";
 import { CompanyDetail } from "@/lib/types";
+import {
+  IconArrowLeft,
+  IconCreditCard,
+  IconChartBar,
+  IconCoin,
+  IconPercentage,
+  IconAlertTriangle,
+  IconShieldCheck,
+  IconTarget,
+  IconTrendingUp,
+  IconMessageCircle,
+  IconPhone,
+  IconMail,
+  IconUsers,
+  IconSparkles,
+} from "@tabler/icons-react";
 
-const riskColors: Record<string, string> = {
-  HIGH: "red",
-  MEDIUM: "orange",
-  LOW: "green",
-};
+const avatarColors = [
+  "#4F46E5", "#0891B2", "#7C3AED", "#059669",
+  "#D97706", "#DC2626", "#2563EB", "#9333EA",
+  "#0D9488", "#C026D3",
+];
 
-const channelLabels: Record<string, string> = {
-  WHATSAPP: "WhatsApp",
-  CALL: "Llamada",
-  EMAIL: "Email",
-  MEETING: "Reunión",
-};
+function getAvatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return avatarColors[Math.abs(hash) % avatarColors.length];
+}
 
 function formatCurrency(n: number): string {
   return new Intl.NumberFormat("es-CL", {
@@ -59,42 +59,110 @@ function formatPct(n: number | null): string {
 }
 
 function formatDate(d: string): string {
-  return new Date(d).toLocaleDateString("es-CL");
+  return new Date(d).toLocaleDateString("es-CL", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function daysSince(d: string): number {
-  return Math.floor(
-    (Date.now() - new Date(d).getTime()) / (24 * 60 * 60 * 1000)
-  );
+  return Math.floor((Date.now() - new Date(d).getTime()) / (24 * 60 * 60 * 1000));
 }
 
-function buildVolumeChart(
-  operations: CompanyDetail["operations"]
-): { month: string; volumen: number }[] {
+const channelIcons: Record<string, React.ReactNode> = {
+  WHATSAPP: <IconMessageCircle size={14} />,
+  CALL: <IconPhone size={14} />,
+  EMAIL: <IconMail size={14} />,
+  MEETING: <IconUsers size={14} />,
+};
+
+const channelLabels: Record<string, string> = {
+  WHATSAPP: "WhatsApp",
+  CALL: "Llamada",
+  EMAIL: "Email",
+  MEETING: "Reunión",
+};
+
+const lifecycleConfig: Record<string, string> = {
+  ENROLADO: "badge-blue",
+  ACTIVO: "badge-green",
+  RECURRENTE: "badge-violet",
+};
+
+function buildVolumeChart(operations: CompanyDetail["operations"]): { month: string; volumen: number }[] {
   const monthMap = new Map<string, number>();
   const now = new Date();
   for (let i = 11; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    monthMap.set(key, 0);
+    const key = d.toLocaleDateString("es-CL", { month: "short", year: "2-digit" });
+    const sortKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    monthMap.set(sortKey + "|" + key, 0);
   }
   for (const op of operations) {
     if (op.type === "FACTORING" || op.type === "CONFIRMING") {
       const d = new Date(op.date);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      if (monthMap.has(key)) {
-        monthMap.set(key, (monthMap.get(key) || 0) + op.amount);
+      const keys = Array.from(monthMap.keys());
+      for (const k of keys) {
+        if (k.startsWith(key + "|")) {
+          monthMap.set(k, (monthMap.get(k) || 0) + op.amount);
+        }
       }
     }
   }
-  return Array.from(monthMap.entries()).map(([month, volumen]) => ({
-    month,
-    volumen,
+  return Array.from(monthMap.entries()).map((entry) => ({
+    month: entry[0].split("|")[1],
+    volumen: entry[1],
   }));
 }
 
+function generateAISummary(company: CompanyDetail): string {
+  const s = company.signals;
+
+  if (s.churnRisk === "HIGH") {
+    const reasons: string[] = [];
+    if (s.daysSinceLastOp !== null && s.daysSinceLastOp > 30) reasons.push(`sin operaciones hace ${s.daysSinceLastOp} días`);
+    if (s.volumeTrendPct < -0.2) reasons.push(`caída de volumen del ${Math.abs(Math.round(s.volumeTrendPct * 100))}%`);
+    if (s.hasOverdue) reasons.push(`mora activa de ${formatCurrency(s.overdueAmount)}`);
+    return `${company.legalName} presenta riesgo alto de churn${reasons.length ? ": " + reasons.join(", ") : ""}. Se recomienda contacto inmediato para evaluar la situación y ofrecer alternativas de retención. Priorizar una reunión esta semana.`;
+  }
+
+  if (s.expansion) {
+    const reasons = s.expansionReasons;
+    const growthNote = s.volumeTrendPct > 0.5
+      ? `El volumen financiado creció ${Math.round(s.volumeTrendPct * 100)}% en los últimos 90 días`
+      : `La empresa mantiene operaciones activas`;
+    return `${company.legalName} presenta una oportunidad de expansión. ${growthNote} mientras mantiene riesgo ${s.churnRisk === "LOW" ? "bajo" : "medio"} y ${s.hasOverdue ? "mora controlada" : "cero mora"}. ${reasons.length ? `Señales: ${reasons.join(", ")}. ` : ""}Se recomienda contactar durante los próximos 7 días para evaluar aumento de línea o cross-sell.`;
+  }
+
+  if (s.churnRisk === "LOW") {
+    return `${company.legalName} es una cuenta saludable con buen historial. Volumen estable, sin señales de riesgo. Mantener seguimiento regular y explorar oportunidades de profundización comercial.`;
+  }
+
+  return `${company.legalName} requiere monitoreo. Se recomienda mantener contacto periódico para asegurar retención y evaluar potencial de crecimiento.`;
+}
+
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: "#0F172A",
+      color: "white",
+      padding: "10px 14px",
+      borderRadius: 8,
+      fontSize: 13,
+      fontWeight: 500,
+      boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+    }}>
+      <div style={{ color: "#94A3B8", fontSize: 11, marginBottom: 4 }}>{label}</div>
+      <div>{formatCurrency(payload[0].value)}</div>
+    </div>
+  );
+};
+
 export default function CompanyDetailPage() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -139,318 +207,348 @@ export default function CompanyDetailPage() {
       setSaveMsg("Guardado");
       setTimeout(() => setSaveMsg(null), 2000);
     } catch (err) {
-      setSaveMsg(
-        err instanceof Error ? err.message : "Error al guardar"
-      );
+      setSaveMsg(err instanceof Error ? err.message : "Error al guardar");
     } finally {
       setSaving(false);
     }
   };
 
+  const userName = (session?.user as Record<string, unknown>)?.name as string;
+
   if (loading) {
     return (
-      <Container py="xl" ta="center">
-        <Loader size="lg" />
-      </Container>
+      <>
+        <nav className="nav-bar">
+          <div className="nav-logo">
+            <div className="nav-logo-icon">X</div>
+            Xepelin CRM
+          </div>
+          <div className="nav-right">
+            <span className="nav-user">{userName}</span>
+          </div>
+        </nav>
+        <div className="loading-container">
+          <div className="spinner" />
+        </div>
+      </>
     );
   }
 
   if (error || !company) {
     return (
-      <Container py="xl">
-        <Alert color="red" title="Error">
-          {error || "Empresa no encontrada"}
-        </Alert>
-        <Button mt="md" variant="subtle" onClick={() => router.push("/")}>
-          Volver
-        </Button>
-      </Container>
+      <>
+        <nav className="nav-bar">
+          <div className="nav-logo">
+            <div className="nav-logo-icon">X</div>
+            Xepelin CRM
+          </div>
+        </nav>
+        <div className="page-container">
+          <div className="error-alert">{error || "Empresa no encontrada"}</div>
+          <button className="detail-back" onClick={() => router.push("/")}>
+            <IconArrowLeft size={16} /> Volver al listado
+          </button>
+        </div>
+      </>
     );
   }
 
   const s = company.signals;
   const volumeData = buildVolumeChart(company.operations);
+  const aiSummary = generateAISummary(company);
 
   return (
-    <Container size="xl" py="md">
-      <Button variant="subtle" mb="md" onClick={() => router.push("/")}>
-        ← Volver al listado
-      </Button>
-
-      {/* Header */}
-      <Flex justify="space-between" align="start" mb="lg" wrap="wrap" gap="md">
-        <div>
-          <Title order={2}>{company.legalName}</Title>
-          <Text c="dimmed" size="sm">
-            {company.taxId} · {company.industry} · {company.country}
-          </Text>
-          <Group mt="xs">
-            <Badge variant="light">{company.segment}</Badge>
-            <Badge
-              variant="light"
-              color={
-                company.lifecycleStage === "RECURRENTE"
-                  ? "violet"
-                  : company.lifecycleStage === "ACTIVO"
-                    ? "teal"
-                    : "blue"
-              }
-            >
-              {company.lifecycleStage}
-            </Badge>
-            <Text size="xs" c="dimmed">
-              Antigüedad: {daysSince(company.onboardedAt)}d
-            </Text>
-          </Group>
+    <div className="animate-fade-in">
+      {/* Nav */}
+      <nav className="nav-bar">
+        <div className="nav-logo">
+          <div className="nav-logo-icon">X</div>
+          Xepelin CRM
         </div>
-        <Group>
-          <Select
-            label="Estado"
-            value={statusVal}
-            onChange={(v) => setStatusVal(v || "active")}
-            data={[
-              { label: "Activo", value: "active" },
-              { label: "Inactivo", value: "inactive" },
-              { label: "Suspendido", value: "suspended" },
-            ]}
-            w={140}
-          />
-        </Group>
-      </Flex>
+        <div className="nav-right">
+          <span className="nav-user">{userName}</span>
+          <button className="nav-logout" onClick={() => signOut()}>
+            Cerrar sesión
+          </button>
+        </div>
+      </nav>
 
-      {/* AI Panel placeholder */}
-      <Card shadow="xs" mb="lg" p="md" withBorder>
-        <Title order={5} mb="xs">
-          Análisis IA
-        </Title>
-        {company.healthScore !== null ? (
-          <Text>Health Score: {company.healthScore}</Text>
-        ) : (
-          <Text c="dimmed" fs="italic">
-            Análisis IA no disponible aún (se genera en la Parte 2).
-          </Text>
-        )}
-      </Card>
+      <div className="page-container">
+        {/* Back */}
+        <button className="detail-back" onClick={() => router.push("/")}>
+          <IconArrowLeft size={16} /> Volver al listado
+        </button>
 
-      {/* Metrics */}
-      <Grid mb="lg">
-        <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-          <Card shadow="xs" p="sm" withBorder>
-            <Text size="xs" c="dimmed">
-              Línea aprobada
-            </Text>
-            <Text fw={700}>{formatCurrency(company.creditLineApproved)}</Text>
-          </Card>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-          <Card shadow="xs" p="sm" withBorder>
-            <Text size="xs" c="dimmed">
-              Línea usada
-            </Text>
-            <Text fw={700}>
-              {formatCurrency(company.creditLineUsed)}{" "}
-              <Text span size="xs" c="dimmed">
-                ({formatPct(s.lineUtilization)})
-              </Text>
-            </Text>
-          </Card>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-          <Card shadow="xs" p="sm" withBorder>
-            <Text size="xs" c="dimmed">
-              Vol. financiado 90d
-            </Text>
-            <Text fw={700}>{formatCurrency(s.financedVolume90d)}</Text>
-          </Card>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-          <Card shadow="xs" p="sm" withBorder>
-            <Text size="xs" c="dimmed">
-              Profit estimado 90d
-            </Text>
-            <Text fw={700}>{formatCurrency(s.estGrossProfit90d)}</Text>
-          </Card>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-          <Card shadow="xs" p="sm" withBorder>
-            <Text size="xs" c="dimmed">
-              SOW
-            </Text>
-            <Text fw={700}>{formatPct(s.sowPct)}</Text>
-          </Card>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-          <Card shadow="xs" p="sm" withBorder>
-            <Text size="xs" c="dimmed">
-              Riesgo churn
-            </Text>
-            <Badge color={riskColors[s.churnRisk]} variant="filled">
-              {s.churnRisk}
-            </Badge>
-          </Card>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-          <Card shadow="xs" p="sm" withBorder>
-            <Text size="xs" c="dimmed">
-              Mora
-            </Text>
-            <Text fw={700} c={s.hasOverdue ? "red" : undefined}>
-              {s.hasOverdue
-                ? formatCurrency(s.overdueAmount)
-                : "Sin mora"}
-            </Text>
-          </Card>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-          <Card shadow="xs" p="sm" withBorder>
-            <Text size="xs" c="dimmed">
-              Prioridad
-            </Text>
-            <Badge
-              color={
-                s.priorityLabel === "ALTA"
-                  ? "red"
-                  : s.priorityLabel === "MEDIA"
-                    ? "yellow"
-                    : "green"
-              }
-              variant="filled"
-            >
-              {s.priorityLabel}
-            </Badge>
-            <Text size="xs" mt={2}>
-              {s.priorityReason}
-            </Text>
-          </Card>
-        </Grid.Col>
-      </Grid>
-
-      {/* Volume chart */}
-      <Card shadow="xs" mb="lg" p="md" withBorder>
-        <Title order={5} mb="sm">
-          Volumen financiado por mes
-        </Title>
-        <ResponsiveContainer width="100%" height={250}>
-          <BarChart data={volumeData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" fontSize={12} />
-            <YAxis fontSize={12} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
-            <Tooltip
-              formatter={(value) => formatCurrency(Number(value))}
-            />
-            <Bar dataKey="volumen" fill="#228be6" />
-          </BarChart>
-        </ResponsiveContainer>
-      </Card>
-
-      {/* Operations */}
-      <Card shadow="xs" mb="lg" p="md" withBorder>
-        <Title order={5} mb="sm">
-          Historial de operaciones
-        </Title>
-        {company.operations.length === 0 ? (
-          <Text c="dimmed">Sin operaciones registradas.</Text>
-        ) : (
-          <Table striped withTableBorder>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Tipo</Table.Th>
-                <Table.Th>Monto</Table.Th>
-                <Table.Th>Fecha</Table.Th>
-                <Table.Th>Estado</Table.Th>
-                <Table.Th>Mora (días)</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {company.operations.map((op) => (
-                <Table.Tr key={op.id}>
-                  <Table.Td>
-                    <Badge variant="light" size="sm">
-                      {op.type}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>{formatCurrency(op.amount)}</Table.Td>
-                  <Table.Td>{formatDate(op.date)}</Table.Td>
-                  <Table.Td>
-                    <Badge
-                      color={
-                        op.status === "VENCIDA"
-                          ? "red"
-                          : op.status === "PENDIENTE"
-                            ? "yellow"
-                            : "green"
-                      }
-                      variant="light"
-                      size="sm"
-                    >
-                      {op.status}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    {op.daysPastDue > 0 ? (
-                      <Text c="red" fw={600}>
-                        {op.daysPastDue}
-                      </Text>
-                    ) : (
-                      "—"
-                    )}
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        )}
-      </Card>
-
-      {/* Interactions timeline */}
-      <Card shadow="xs" mb="lg" p="md" withBorder>
-        <Title order={5} mb="sm">
-          Timeline de interacciones
-        </Title>
-        {company.interactions.length === 0 ? (
-          <Text c="dimmed">Sin interacciones registradas.</Text>
-        ) : (
-          <Timeline active={0} bulletSize={20} lineWidth={2}>
-            {company.interactions.map((inter) => (
-              <Timeline.Item
-                key={inter.id}
-                title={channelLabels[inter.channel] || inter.channel}
+        {/* Hero */}
+        <div className="detail-hero animate-slide-up">
+          <div className="detail-hero-top">
+            <div className="detail-hero-left">
+              <div
+                className="detail-avatar"
+                style={{ background: getAvatarColor(company.legalName) }}
               >
-                <Text size="xs" c="dimmed">
-                  {formatDate(inter.date)}
-                </Text>
-                <Text size="sm" mt={4}>
-                  {inter.summary}
-                </Text>
-              </Timeline.Item>
-            ))}
-          </Timeline>
-        )}
-      </Card>
+                {company.legalName.charAt(0)}
+              </div>
+              <div>
+                <div className="detail-title">{company.legalName}</div>
+                <div className="detail-subtitle">
+                  {company.taxId} · {company.industry} · {company.country}
+                </div>
+                <div className="detail-badges">
+                  <span className={`badge ${lifecycleConfig[company.lifecycleStage] || "badge-gray"}`}>
+                    {company.lifecycleStage}
+                  </span>
+                  <span className="badge badge-gray">{company.segment}</span>
+                  <span className="badge badge-gray">
+                    {daysSince(company.onboardedAt)} días como cliente
+                  </span>
+                  <span className={`badge ${s.priorityLabel === "ALTA" ? "badge-red" : s.priorityLabel === "MEDIA" ? "badge-yellow" : "badge-green"}`}>
+                    Prioridad {s.priorityLabel.toLowerCase()}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="detail-actions">
+              <select
+                className="status-select"
+                value={statusVal}
+                onChange={(e) => setStatusVal(e.target.value)}
+              >
+                <option value="active">Activo</option>
+                <option value="inactive">Inactivo</option>
+                <option value="suspended">Suspendido</option>
+              </select>
+            </div>
+          </div>
+        </div>
 
-      {/* Notes */}
-      <Card shadow="xs" mb="lg" p="md" withBorder>
-        <Title order={5} mb="sm">
-          Notas
-        </Title>
-        <Textarea
-          value={notes}
-          onChange={(e) => setNotes(e.currentTarget.value)}
-          minRows={3}
-          autosize
-          mb="sm"
-        />
-        <Group>
-          <Button onClick={handleSave} loading={saving} size="sm">
-            Guardar
-          </Button>
-          {saveMsg && (
-            <Text size="sm" c={saveMsg === "Guardado" ? "green" : "red"}>
-              {saveMsg}
-            </Text>
+        {/* AI Copilot */}
+        <div className="ai-card animate-slide-up" style={{ animationDelay: "50ms" }}>
+          <div className="ai-header">
+            <div className="ai-icon">
+              <IconSparkles size={16} />
+            </div>
+            <span className="ai-title">Análisis inteligente</span>
+            <span className="ai-badge">Auto-generado</span>
+          </div>
+          <div className="ai-text">{aiSummary}</div>
+        </div>
+
+        {/* Metrics */}
+        <div className="metrics-grid animate-slide-up" style={{ animationDelay: "100ms" }}>
+          <div className="metric-card">
+            <div className="metric-icon" style={{ color: "#4F46E5" }}>
+              <IconCreditCard size={22} />
+            </div>
+            <div className="metric-label">Línea aprobada</div>
+            <div className="metric-value">{formatCurrency(company.creditLineApproved)}</div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-icon" style={{ color: "#0891B2" }}>
+              <IconChartBar size={22} />
+            </div>
+            <div className="metric-label">Línea usada</div>
+            <div className="metric-value">{formatCurrency(company.creditLineUsed)}</div>
+            <div className="metric-sub">{formatPct(s.lineUtilization)} utilización</div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-icon" style={{ color: "#15803D" }}>
+              <IconTrendingUp size={22} />
+            </div>
+            <div className="metric-label">Volumen 90d</div>
+            <div className="metric-value">{formatCurrency(s.financedVolume90d)}</div>
+            <div className="metric-sub">
+              <span style={{
+                color: s.volumeTrendPct > 0.05 ? "#15803D" : s.volumeTrendPct < -0.05 ? "#DC2626" : "#64748B",
+                fontWeight: 600,
+              }}>
+                {s.volumeTrendPct > 0 ? "↑" : s.volumeTrendPct < 0 ? "↓" : "→"} {Math.abs(Math.round(s.volumeTrendPct * 100))}%
+              </span>
+              {" "}vs periodo anterior
+            </div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-icon" style={{ color: "#7C3AED" }}>
+              <IconCoin size={22} />
+            </div>
+            <div className="metric-label">Profit estimado 90d</div>
+            <div className="metric-value">{formatCurrency(s.estGrossProfit90d)}</div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-icon" style={{ color: "#D97706" }}>
+              <IconPercentage size={22} />
+            </div>
+            <div className="metric-label">SOW</div>
+            <div className="metric-value">{formatPct(s.sowPct)}</div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-icon" style={{ color: s.churnRisk === "HIGH" ? "#DC2626" : s.churnRisk === "MEDIUM" ? "#D97706" : "#15803D" }}>
+              <IconShieldCheck size={22} />
+            </div>
+            <div className="metric-label">Riesgo churn</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+              <span className={`badge ${s.churnRisk === "HIGH" ? "badge-red" : s.churnRisk === "MEDIUM" ? "badge-yellow" : "badge-green"}`}>
+                {s.churnRisk === "HIGH" ? "Alto" : s.churnRisk === "MEDIUM" ? "Medio" : "Bajo"}
+              </span>
+            </div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-icon" style={{ color: s.hasOverdue ? "#DC2626" : "#15803D" }}>
+              <IconAlertTriangle size={22} />
+            </div>
+            <div className="metric-label">Mora</div>
+            <div className="metric-value" style={{ color: s.hasOverdue ? "#DC2626" : undefined }}>
+              {s.hasOverdue ? formatCurrency(s.overdueAmount) : "Sin mora"}
+            </div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-icon" style={{ color: "#4F46E5" }}>
+              <IconTarget size={22} />
+            </div>
+            <div className="metric-label">Productos</div>
+            <div className="metric-value">{s.productsUsed.length}</div>
+            <div className="metric-sub">{s.productsUsed.join(", ")}</div>
+          </div>
+        </div>
+
+        {/* Volume Chart */}
+        <div className="chart-card animate-slide-up" style={{ animationDelay: "150ms" }}>
+          <div className="chart-title">Volumen financiado por mes</div>
+          <ResponsiveContainer width="100%" height={280}>
+            <AreaChart data={volumeData}>
+              <defs>
+                <linearGradient id="volumeGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#4F46E5" stopOpacity={0.15} />
+                  <stop offset="100%" stopColor="#4F46E5" stopOpacity={0.01} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="0" stroke="#F1F5F9" vertical={false} />
+              <XAxis
+                dataKey="month"
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+                tick={{ fill: "#94A3B8" }}
+              />
+              <YAxis
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+                tick={{ fill: "#94A3B8" }}
+                tickFormatter={(v: number) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : `${(v / 1000).toFixed(0)}k`}
+                width={60}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Area
+                type="monotone"
+                dataKey="volumen"
+                stroke="#4F46E5"
+                strokeWidth={2.5}
+                fill="url(#volumeGrad)"
+                dot={false}
+                activeDot={{ r: 5, fill: "#4F46E5", stroke: "white", strokeWidth: 2 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Operations */}
+        <div className="section-card animate-slide-up" style={{ animationDelay: "200ms" }}>
+          <div className="section-title">Historial de operaciones</div>
+          {company.operations.length === 0 ? (
+            <div className="empty-state" style={{ padding: "32px" }}>
+              <div className="empty-state-text">Sin operaciones registradas</div>
+            </div>
+          ) : (
+            <table className="ops-table">
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Monto</th>
+                  <th>Fecha</th>
+                  <th>Estado</th>
+                  <th>Mora (días)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {company.operations.map((op) => (
+                  <tr key={op.id}>
+                    <td>
+                      <span className="badge badge-blue">{op.type}</span>
+                    </td>
+                    <td style={{ fontWeight: 600 }}>{formatCurrency(op.amount)}</td>
+                    <td style={{ color: "#64748B" }}>{formatDate(op.date)}</td>
+                    <td>
+                      <span className={`badge ${op.status === "VENCIDA" ? "badge-red" : op.status === "PENDIENTE" ? "badge-yellow" : "badge-green"}`}>
+                        {op.status}
+                      </span>
+                    </td>
+                    <td>
+                      {op.daysPastDue > 0 ? (
+                        <span style={{ color: "#DC2626", fontWeight: 600 }}>{op.daysPastDue}</span>
+                      ) : (
+                        <span style={{ color: "#94A3B8" }}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
-        </Group>
-      </Card>
-    </Container>
+        </div>
+
+        {/* Timeline */}
+        <div className="section-card animate-slide-up" style={{ animationDelay: "250ms" }}>
+          <div className="section-title">Timeline de interacciones</div>
+          {company.interactions.length === 0 ? (
+            <div className="empty-state" style={{ padding: "32px" }}>
+              <div className="empty-state-text">Sin interacciones registradas</div>
+            </div>
+          ) : (
+            <div>
+              {company.interactions.map((inter) => (
+                <div key={inter.id} className="timeline-item">
+                  <div className="timeline-dot">
+                    {channelIcons[inter.channel] || <IconMessageCircle size={14} />}
+                  </div>
+                  <div className="timeline-content">
+                    <div className="timeline-channel">
+                      {channelLabels[inter.channel] || inter.channel}
+                    </div>
+                    <div className="timeline-date">{formatDate(inter.date)}</div>
+                    <div className="timeline-summary">{inter.summary}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Notes */}
+        <div className="section-card animate-slide-up" style={{ animationDelay: "300ms" }}>
+          <div className="section-title">Notas</div>
+          <textarea
+            className="notes-textarea"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Agregar notas sobre esta empresa..."
+          />
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+            <button
+              className="btn btn-primary"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? "Guardando..." : "Guardar cambios"}
+            </button>
+            {saveMsg && (
+              <span className={`save-msg ${saveMsg === "Guardado" ? "success" : "error"}`}>
+                {saveMsg === "Guardado" ? "✓" : "✕"} {saveMsg}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
