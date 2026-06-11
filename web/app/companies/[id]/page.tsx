@@ -4,8 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useParams, useRouter } from "next/navigation";
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -16,6 +14,14 @@ import {
 } from "recharts";
 import { apiFetch } from "@/lib/api-client";
 import { CompanyDetail } from "@/lib/types";
+import {
+  formatCurrency,
+  formatPct,
+  formatDate,
+  daysSince,
+  getAvatarColor,
+  LIFECYCLE_BADGES,
+} from "@/lib/format";
 import {
   IconArrowLeft,
   IconCreditCard,
@@ -33,61 +39,18 @@ import {
   IconSparkles,
 } from "@tabler/icons-react";
 
-const avatarColors = [
-  "#4F46E5", "#0891B2", "#7C3AED", "#059669",
-  "#D97706", "#DC2626", "#2563EB", "#9333EA",
-  "#0D9488", "#C026D3",
-];
-
-function getAvatarColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return avatarColors[Math.abs(hash) % avatarColors.length];
-}
-
-function formatCurrency(n: number): string {
-  return new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: "CLP",
-    maximumFractionDigits: 0,
-  }).format(n);
-}
-
-function formatPct(n: number | null): string {
-  if (n === null) return "—";
-  return `${Math.round(n * 100)}%`;
-}
-
-function formatDate(d: string): string {
-  return new Date(d).toLocaleDateString("es-CL", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function daysSince(d: string): number {
-  return Math.floor((Date.now() - new Date(d).getTime()) / (24 * 60 * 60 * 1000));
-}
-
-const channelIcons: Record<string, React.ReactNode> = {
+const CHANNEL_ICONS: Record<string, React.ReactNode> = {
   WHATSAPP: <IconMessageCircle size={14} />,
   CALL: <IconPhone size={14} />,
   EMAIL: <IconMail size={14} />,
   MEETING: <IconUsers size={14} />,
 };
 
-const channelLabels: Record<string, string> = {
+const CHANNEL_LABELS: Record<string, string> = {
   WHATSAPP: "WhatsApp",
   CALL: "Llamada",
   EMAIL: "Email",
   MEETING: "Reunión",
-};
-
-const lifecycleConfig: Record<string, string> = {
-  ENROLADO: "badge-blue",
-  ACTIVO: "badge-green",
-  RECURRENTE: "badge-violet",
 };
 
 function buildVolumeChart(operations: CompanyDetail["operations"]): { month: string; volumen: number }[] {
@@ -95,25 +58,24 @@ function buildVolumeChart(operations: CompanyDetail["operations"]): { month: str
   const now = new Date();
   for (let i = 11; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = d.toLocaleDateString("es-CL", { month: "short", year: "2-digit" });
+    const label = d.toLocaleDateString("es-CL", { month: "short", year: "2-digit" });
     const sortKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    monthMap.set(sortKey + "|" + key, 0);
+    monthMap.set(sortKey + "|" + label, 0);
   }
   for (const op of operations) {
     if (op.type === "FACTORING" || op.type === "CONFIRMING") {
       const d = new Date(op.date);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const keys = Array.from(monthMap.keys());
-      for (const k of keys) {
-        if (k.startsWith(key + "|")) {
+      const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}|`;
+      for (const k of Array.from(monthMap.keys())) {
+        if (k.startsWith(prefix)) {
           monthMap.set(k, (monthMap.get(k) || 0) + op.amount);
         }
       }
     }
   }
-  return Array.from(monthMap.entries()).map((entry) => ({
-    month: entry[0].split("|")[1],
-    volumen: entry[1],
+  return Array.from(monthMap.entries()).map(([key, value]) => ({
+    month: key.split("|")[1],
+    volumen: value,
   }));
 }
 
@@ -122,18 +84,23 @@ function generateAISummary(company: CompanyDetail): string {
 
   if (s.churnRisk === "HIGH") {
     const reasons: string[] = [];
-    if (s.daysSinceLastOp !== null && s.daysSinceLastOp > 30) reasons.push(`sin operaciones hace ${s.daysSinceLastOp} días`);
-    if (s.volumeTrendPct < -0.2) reasons.push(`caída de volumen del ${Math.abs(Math.round(s.volumeTrendPct * 100))}%`);
-    if (s.hasOverdue) reasons.push(`mora activa de ${formatCurrency(s.overdueAmount)}`);
+    if (s.daysSinceLastOp !== null && s.daysSinceLastOp > 30)
+      reasons.push(`sin operaciones hace ${s.daysSinceLastOp} días`);
+    if (s.volumeTrendPct < -0.2)
+      reasons.push(`caída de volumen del ${Math.abs(Math.round(s.volumeTrendPct * 100))}%`);
+    if (s.hasOverdue)
+      reasons.push(`mora activa de ${formatCurrency(s.overdueAmount)}`);
     return `${company.legalName} presenta riesgo alto de churn${reasons.length ? ": " + reasons.join(", ") : ""}. Se recomienda contacto inmediato para evaluar la situación y ofrecer alternativas de retención. Priorizar una reunión esta semana.`;
   }
 
   if (s.expansion) {
-    const reasons = s.expansionReasons;
     const growthNote = s.volumeTrendPct > 0.5
       ? `El volumen financiado creció ${Math.round(s.volumeTrendPct * 100)}% en los últimos 90 días`
       : `La empresa mantiene operaciones activas`;
-    return `${company.legalName} presenta una oportunidad de expansión. ${growthNote} mientras mantiene riesgo ${s.churnRisk === "LOW" ? "bajo" : "medio"} y ${s.hasOverdue ? "mora controlada" : "cero mora"}. ${reasons.length ? `Señales: ${reasons.join(", ")}. ` : ""}Se recomienda contactar durante los próximos 7 días para evaluar aumento de línea o cross-sell.`;
+    const riskLabel = s.churnRisk === "LOW" ? "bajo" : "medio";
+    const overdueLabel = s.hasOverdue ? "mora controlada" : "cero mora";
+    const reasonsText = s.expansionReasons.length ? `Señales: ${s.expansionReasons.join(", ")}. ` : "";
+    return `${company.legalName} presenta una oportunidad de expansión. ${growthNote} mientras mantiene riesgo ${riskLabel} y ${overdueLabel}. ${reasonsText}Se recomienda contactar durante los próximos 7 días para evaluar aumento de línea o cross-sell.`;
   }
 
   if (s.churnRisk === "LOW") {
@@ -143,7 +110,7 @@ function generateAISummary(company: CompanyDetail): string {
   return `${company.legalName} requiere monitoreo. Se recomienda mantener contacto periódico para asegurar retención y evaluar potencial de crecimiento.`;
 }
 
-const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) => {
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
@@ -159,7 +126,7 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
       <div>{formatCurrency(payload[0].value)}</div>
     </div>
   );
-};
+}
 
 export default function CompanyDetailPage() {
   const { kam, token, status, logout } = useAuth();
@@ -176,9 +143,7 @@ export default function CompanyDetailPage() {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.replace("/login");
-    }
+    if (status === "unauthenticated") router.replace("/login");
   }, [status, router]);
 
   const fetchCompany = useCallback(async () => {
@@ -197,9 +162,7 @@ export default function CompanyDetailPage() {
   }, [id, token]);
 
   useEffect(() => {
-    if (status === "authenticated") {
-      fetchCompany();
-    }
+    if (status === "authenticated") fetchCompany();
   }, [status, fetchCompany]);
 
   const handleSave = async () => {
@@ -263,7 +226,6 @@ export default function CompanyDetailPage() {
 
   return (
     <div className="animate-fade-in">
-      {/* Nav */}
       <nav className="nav-bar">
         <div className="nav-logo">
           <div className="nav-logo-icon">X</div>
@@ -278,12 +240,10 @@ export default function CompanyDetailPage() {
       </nav>
 
       <div className="page-container">
-        {/* Back */}
         <button className="detail-back" onClick={() => router.push("/")}>
           <IconArrowLeft size={16} /> Volver al listado
         </button>
 
-        {/* Hero */}
         <div className="detail-hero animate-slide-up">
           <div className="detail-hero-top">
             <div className="detail-hero-left">
@@ -299,7 +259,7 @@ export default function CompanyDetailPage() {
                   {company.taxId} · {company.industry} · {company.country}
                 </div>
                 <div className="detail-badges">
-                  <span className={`badge ${lifecycleConfig[company.lifecycleStage] || "badge-gray"}`}>
+                  <span className={`badge ${LIFECYCLE_BADGES[company.lifecycleStage] || "badge-gray"}`}>
                     {company.lifecycleStage}
                   </span>
                   <span className="badge badge-gray">{company.segment}</span>
@@ -326,7 +286,6 @@ export default function CompanyDetailPage() {
           </div>
         </div>
 
-        {/* AI Copilot */}
         <div className="ai-card animate-slide-up" style={{ animationDelay: "50ms" }}>
           <div className="ai-header">
             <div className="ai-icon">
@@ -338,7 +297,6 @@ export default function CompanyDetailPage() {
           <div className="ai-text">{aiSummary}</div>
         </div>
 
-        {/* Metrics */}
         <div className="metrics-grid animate-slide-up" style={{ animationDelay: "100ms" }}>
           <div className="metric-card">
             <div className="metric-icon" style={{ color: "#4F46E5" }}>
@@ -415,7 +373,6 @@ export default function CompanyDetailPage() {
           </div>
         </div>
 
-        {/* Volume Chart */}
         <div className="chart-card animate-slide-up" style={{ animationDelay: "150ms" }}>
           <div className="chart-title">Volumen financiado por mes</div>
           <ResponsiveContainer width="100%" height={280}>
@@ -427,36 +384,22 @@ export default function CompanyDetailPage() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="0" stroke="#F1F5F9" vertical={false} />
-              <XAxis
-                dataKey="month"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-                tick={{ fill: "#94A3B8" }}
-              />
+              <XAxis dataKey="month" fontSize={12} tickLine={false} axisLine={false} tick={{ fill: "#94A3B8" }} />
               <YAxis
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-                tick={{ fill: "#94A3B8" }}
-                tickFormatter={(v: number) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : `${(v / 1000).toFixed(0)}k`}
-                width={60}
+                fontSize={12} tickLine={false} axisLine={false}
+                tick={{ fill: "#94A3B8" }} width={60}
+                tickFormatter={(v: number) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : `${(v / 1_000).toFixed(0)}k`}
               />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<ChartTooltip />} />
               <Area
-                type="monotone"
-                dataKey="volumen"
-                stroke="#4F46E5"
-                strokeWidth={2.5}
-                fill="url(#volumeGrad)"
-                dot={false}
+                type="monotone" dataKey="volumen" stroke="#4F46E5" strokeWidth={2.5}
+                fill="url(#volumeGrad)" dot={false}
                 activeDot={{ r: 5, fill: "#4F46E5", stroke: "white", strokeWidth: 2 }}
               />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Operations */}
         <div className="section-card animate-slide-up" style={{ animationDelay: "200ms" }}>
           <div className="section-title">Historial de operaciones</div>
           {company.operations.length === 0 ? (
@@ -477,9 +420,7 @@ export default function CompanyDetailPage() {
               <tbody>
                 {company.operations.map((op) => (
                   <tr key={op.id}>
-                    <td>
-                      <span className="badge badge-blue">{op.type}</span>
-                    </td>
+                    <td><span className="badge badge-blue">{op.type}</span></td>
                     <td style={{ fontWeight: 600 }}>{formatCurrency(op.amount)}</td>
                     <td style={{ color: "#64748B" }}>{formatDate(op.date)}</td>
                     <td>
@@ -488,11 +429,9 @@ export default function CompanyDetailPage() {
                       </span>
                     </td>
                     <td>
-                      {op.daysPastDue > 0 ? (
-                        <span style={{ color: "#DC2626", fontWeight: 600 }}>{op.daysPastDue}</span>
-                      ) : (
-                        <span style={{ color: "#94A3B8" }}>—</span>
-                      )}
+                      {op.daysPastDue > 0
+                        ? <span style={{ color: "#DC2626", fontWeight: 600 }}>{op.daysPastDue}</span>
+                        : <span style={{ color: "#94A3B8" }}>—</span>}
                     </td>
                   </tr>
                 ))}
@@ -501,7 +440,6 @@ export default function CompanyDetailPage() {
           )}
         </div>
 
-        {/* Timeline */}
         <div className="section-card animate-slide-up" style={{ animationDelay: "250ms" }}>
           <div className="section-title">Timeline de interacciones</div>
           {company.interactions.length === 0 ? (
@@ -513,11 +451,11 @@ export default function CompanyDetailPage() {
               {company.interactions.map((inter) => (
                 <div key={inter.id} className="timeline-item">
                   <div className="timeline-dot">
-                    {channelIcons[inter.channel] || <IconMessageCircle size={14} />}
+                    {CHANNEL_ICONS[inter.channel] || <IconMessageCircle size={14} />}
                   </div>
                   <div className="timeline-content">
                     <div className="timeline-channel">
-                      {channelLabels[inter.channel] || inter.channel}
+                      {CHANNEL_LABELS[inter.channel] || inter.channel}
                     </div>
                     <div className="timeline-date">{formatDate(inter.date)}</div>
                     <div className="timeline-summary">{inter.summary}</div>
@@ -528,7 +466,6 @@ export default function CompanyDetailPage() {
           )}
         </div>
 
-        {/* Notes */}
         <div className="section-card animate-slide-up" style={{ animationDelay: "300ms" }}>
           <div className="section-title">Notas</div>
           <textarea
@@ -538,11 +475,7 @@ export default function CompanyDetailPage() {
             placeholder="Agregar notas sobre esta empresa..."
           />
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
-            <button
-              className="btn btn-primary"
-              onClick={handleSave}
-              disabled={saving}
-            >
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
               {saving ? "Guardando..." : "Guardar cambios"}
             </button>
             {saveMsg && (

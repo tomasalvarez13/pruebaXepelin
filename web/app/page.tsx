@@ -6,6 +6,13 @@ import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api-client";
 import { CompanyListItem } from "@/lib/types";
 import {
+  formatCurrency,
+  formatCurrencyFull,
+  formatPct,
+  getAvatarColor,
+  LIFECYCLE_BADGES,
+} from "@/lib/format";
+import {
   IconBuildingBank,
   IconTrendingUp,
   IconAlertTriangle,
@@ -13,53 +20,16 @@ import {
   IconChevronRight,
 } from "@tabler/icons-react";
 
-const avatarColors = [
-  "#4F46E5", "#0891B2", "#7C3AED", "#059669",
-  "#D97706", "#DC2626", "#2563EB", "#9333EA",
-  "#0D9488", "#C026D3",
-];
-
-function getAvatarColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return avatarColors[Math.abs(hash) % avatarColors.length];
-}
-
-function formatCurrency(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}k`;
-  return `$${n.toFixed(0)}`;
-}
-
-function formatCurrencyFull(n: number): string {
-  return new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: "CLP",
-    maximumFractionDigits: 0,
-  }).format(n);
-}
-
-function formatPct(n: number | null): string {
-  if (n === null) return "—";
-  return `${Math.round(n * 100)}%`;
-}
-
-const priorityConfig: Record<string, { class: string; label: string }> = {
+const PRIORITY_CONFIG: Record<string, { class: string; label: string }> = {
   ALTA: { class: "badge-red", label: "Alta" },
   MEDIA: { class: "badge-yellow", label: "Media" },
   BAJA: { class: "badge-green", label: "Baja" },
 };
 
-const riskConfig: Record<string, { dotClass: string; label: string }> = {
+const RISK_CONFIG: Record<string, { dotClass: string; label: string }> = {
   HIGH: { dotClass: "red", label: "Alto" },
   MEDIUM: { dotClass: "yellow", label: "Medio" },
   LOW: { dotClass: "green", label: "Bajo" },
-};
-
-const lifecycleConfig: Record<string, string> = {
-  ENROLADO: "badge-blue",
-  ACTIVO: "badge-green",
-  RECURRENTE: "badge-violet",
 };
 
 export default function HomePage() {
@@ -72,9 +42,7 @@ export default function HomePage() {
   const [sort, setSort] = useState("priority");
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.replace("/login");
-    }
+    if (status === "unauthenticated") router.replace("/login");
   }, [status, router]);
 
   const fetchCompanies = useCallback(async () => {
@@ -87,7 +55,8 @@ export default function HomePage() {
         params.set("filter", filter === "risk" ? "at_risk" : "expansion");
       const qs = params.toString();
       const data = await apiFetch<CompanyListItem[]>(
-        `/companies${qs ? `?${qs}` : ""}`, token
+        `/companies${qs ? `?${qs}` : ""}`,
+        token,
       );
       setCompanies(data);
     } catch (err) {
@@ -98,9 +67,7 @@ export default function HomePage() {
   }, [sort, filter, token]);
 
   useEffect(() => {
-    if (status === "authenticated") {
-      fetchCompanies();
-    }
+    if (status === "authenticated") fetchCompanies();
   }, [status, fetchCompanies]);
 
   const kpis = useMemo(() => {
@@ -119,13 +86,10 @@ export default function HomePage() {
     );
   }
 
-  if (status === "unauthenticated") {
-    return null;
-  }
+  if (status === "unauthenticated") return null;
 
   return (
     <div className="animate-fade-in">
-      {/* Nav */}
       <nav className="nav-bar">
         <div className="nav-logo">
           <div className="nav-logo-icon">X</div>
@@ -142,7 +106,6 @@ export default function HomePage() {
       <div className="page-container">
         <h1 className="page-title">Mi Cartera</h1>
 
-        {/* KPIs */}
         {!loading && companies.length > 0 && (
           <div className="kpi-grid animate-slide-up">
             <div className="kpi-card">
@@ -182,7 +145,6 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Filters */}
         <div className="filter-bar">
           <div className="filter-tabs">
             {[
@@ -212,7 +174,6 @@ export default function HomePage() {
 
         {error && <div className="error-alert">{error}</div>}
 
-        {/* Table */}
         {loading ? (
           <div className="loading-container">
             <div className="spinner" />
@@ -243,7 +204,6 @@ export default function HomePage() {
                 style={{ animationDelay: `${i * 30}ms` }}
                 onClick={() => router.push(`/companies/${c.id}`)}
               >
-                {/* Company info */}
                 <div className="company-info">
                   <div
                     className="company-avatar"
@@ -257,26 +217,22 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                {/* Country */}
                 <div>
                   <span className="badge badge-gray">{c.country}</span>
                 </div>
 
-                {/* Lifecycle */}
                 <div>
-                  <span className={`badge ${lifecycleConfig[c.lifecycleStage] || "badge-gray"}`}>
+                  <span className={`badge ${LIFECYCLE_BADGES[c.lifecycleStage] || "badge-gray"}`}>
                     {c.lifecycleStage}
                   </span>
                 </div>
 
-                {/* Priority */}
                 <div>
-                  <span className={`badge ${priorityConfig[c.signals.priorityLabel]?.class || "badge-gray"}`}>
-                    {priorityConfig[c.signals.priorityLabel]?.label || c.signals.priorityLabel}
+                  <span className={`badge ${PRIORITY_CONFIG[c.signals.priorityLabel]?.class || "badge-gray"}`}>
+                    {PRIORITY_CONFIG[c.signals.priorityLabel]?.label || c.signals.priorityLabel}
                   </span>
                 </div>
 
-                {/* Volume */}
                 <div>
                   <div className="cell-value">
                     {formatCurrencyFull(c.signals.financedVolume90d)}
@@ -290,18 +246,15 @@ export default function HomePage() {
                   </span>
                 </div>
 
-                {/* SOW */}
                 <div className="cell-secondary">{formatPct(c.signals.sowPct)}</div>
 
-                {/* Risk */}
                 <div>
                   <span className="badge badge-gray" style={{ gap: 6 }}>
-                    <span className={`badge-dot ${riskConfig[c.signals.churnRisk]?.dotClass}`} />
-                    {riskConfig[c.signals.churnRisk]?.label || c.signals.churnRisk}
+                    <span className={`badge-dot ${RISK_CONFIG[c.signals.churnRisk]?.dotClass}`} />
+                    {RISK_CONFIG[c.signals.churnRisk]?.label || c.signals.churnRisk}
                   </span>
                 </div>
 
-                {/* Last interaction */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span className="cell-secondary">
                     {c.daysSinceLastInteraction !== null

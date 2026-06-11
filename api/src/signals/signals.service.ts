@@ -126,11 +126,7 @@ export function computeSignals(
     reasons.push('Mora activa');
   }
   if (company.lifecycleStage === 'ENROLADO' && ops.length === 0) {
-    reasons.push(
-      daysSinceLastOp === null
-        ? 'Enrolado sin activar'
-        : `Enrolado sin activar`,
-    );
+    reasons.push('Enrolado sin activar');
   }
   if (sowPct !== null && sowPct < cfg.SOW_EXPANSION_THRESHOLD) {
     reasons.push(`SOW ${Math.round(sowPct * 100)}%`);

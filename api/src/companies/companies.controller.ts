@@ -9,14 +9,9 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentKam } from '../auth/current-kam.decorator';
+import { KamPayload } from '../auth/types';
 import { CompaniesService } from './companies.service';
 import { UpdateCompanyDto } from './companies.dto';
-
-interface KamPayload {
-  id: string;
-  email: string;
-  name: string;
-}
 
 @Controller()
 @UseGuards(JwtAuthGuard)

@@ -32,11 +32,6 @@ export interface CompanyListItem {
   creditLineUsed: number;
   monthlyBilling: number;
   notes: string | null;
-  healthScore: number | null;
-  churnRisk: string | null;
-  aiSummary: string | null;
-  recommendedActions: unknown | null;
-  aiGeneratedAt: string | null;
   signals: CompanySignals;
   daysSinceLastInteraction: number | null;
 }
@@ -60,10 +55,4 @@ export interface Interaction {
 export interface CompanyDetail extends CompanyListItem {
   operations: Operation[];
   interactions: Interaction[];
-}
-
-export interface KamInfo {
-  id: string;
-  email: string;
-  name: string;
 }
