@@ -93,9 +93,14 @@ KAM de demo: `maria@xepelin.com` / `maria123` (María González).
 
 ## Parte 2 — Enriquecimiento con IA (Gemini)
 
-Capa narrativa sobre las señales determinísticas. Las señales (churn, prioridad,
-tier) siguen siendo la fuente de verdad para ordenar/filtrar; el LLM solo agrega
-un **resumen**, **acciones recomendadas** y un **health score** (0-100).
+La IA calcula cuatro columnas por empresa: **`health_score`** (0-100),
+**`churn_risk`** (LOW/MEDIUM/HIGH), **`summary`** y **`recommended_actions`**.
+
+Las señales determinísticas (`signals/`) conviven con la IA: siguen ordenando y
+filtrando la lista al instante (sin esperar al enriquecimiento) y se le pasan al
+modelo como contexto. Una vez enriquecida la empresa, el `churn_risk` de la IA es
+el oficial que se muestra en el detalle (con fallback a la señal determinística
+hasta la primera corrida).
 
 - **Modelo:** `gemini-2.5-flash` con salida JSON estructurada (`responseSchema`).
 - **Módulo:** `api/src/enrichment/` (`GeminiService` + `EnrichmentService`).
@@ -105,8 +110,9 @@ un **resumen**, **acciones recomendadas** y un **health score** (0-100).
     rate limit del free tier; una empresa que falla no detiene el batch.
   - **Manual:** `POST /companies/:id/enrich` (JWT + ownership por `kamId`), usado
     por el botón "Regenerar" en el detalle de empresa.
-- **Persistencia:** columnas `aiSummary`, `healthScore`, `recommendedActions`,
-  `aiGeneratedAt` (ya existían en el schema desde la Parte 1 — **sin migración**).
+- **Persistencia:** columnas `healthScore`, `churnRisk`, `aiSummary`,
+  `recommendedActions`, `aiGeneratedAt` (ya existían en el schema desde la Parte 1
+  — **sin migración**).
 - **Sin API key:** si `GEMINI_API_KEY` está vacía, el enriquecimiento se desactiva
   (cron se omite, el endpoint responde 503) y la UI cae al resumen determinístico.
 

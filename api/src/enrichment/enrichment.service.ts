@@ -112,15 +112,17 @@ export class EnrichmentService {
     return this.prisma.company.update({
       where: { id: companyId },
       data: {
-        aiSummary: result.aiSummary,
         healthScore: result.healthScore,
+        churnRisk: result.churnRisk,
+        aiSummary: result.aiSummary,
         recommendedActions:
           result.recommendedActions as unknown as Prisma.InputJsonValue,
         aiGeneratedAt: new Date(),
       },
       select: {
-        aiSummary: true,
         healthScore: true,
+        churnRisk: true,
+        aiSummary: true,
         recommendedActions: true,
         aiGeneratedAt: true,
       },

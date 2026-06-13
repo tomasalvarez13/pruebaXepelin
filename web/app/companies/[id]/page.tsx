@@ -126,6 +126,14 @@ function healthColor(score: number): string {
   return "#DC2626";
 }
 
+function churnBadgeClass(risk: string): string {
+  return risk === "HIGH" ? "badge-red" : risk === "MEDIUM" ? "badge-yellow" : "badge-green";
+}
+
+function churnLabel(risk: string): string {
+  return risk === "HIGH" ? "Alto" : risk === "MEDIUM" ? "Medio" : "Bajo";
+}
+
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
@@ -255,6 +263,9 @@ export default function CompanyDetailPage() {
   const volumeData = buildVolumeChart(company.operations);
   const hasAI = !!company.aiGeneratedAt;
   const aiSummary = company.aiSummary || generateAISummary(company);
+  // AI churn_risk is the official value once enriched; fall back to the
+  // deterministic signal until the first AI run.
+  const churnRisk = company.churnRisk ?? s.churnRisk;
 
   return (
     <div className="animate-fade-in">
@@ -334,6 +345,10 @@ export default function CompanyDetailPage() {
                   </span>
                 </div>
               )}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }} title="Riesgo de churn (IA)">
+                <span style={{ fontSize: 12, color: "#64748B" }}>Churn</span>
+                <span className={`badge ${churnBadgeClass(churnRisk)}`}>{churnLabel(churnRisk)}</span>
+              </div>
               <button
                 className="btn btn-secondary"
                 onClick={handleRegenerate}
@@ -433,14 +448,15 @@ export default function CompanyDetailPage() {
             <div className="metric-value">{formatPct(s.sowPct)}</div>
           </div>
           <div className="metric-card">
-            <div className="metric-icon" style={{ color: s.churnRisk === "HIGH" ? "#DC2626" : s.churnRisk === "MEDIUM" ? "#D97706" : "#15803D" }}>
+            <div className="metric-icon" style={{ color: churnRisk === "HIGH" ? "#DC2626" : churnRisk === "MEDIUM" ? "#D97706" : "#15803D" }}>
               <IconShieldCheck size={22} />
             </div>
             <div className="metric-label">Riesgo churn</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-              <span className={`badge ${s.churnRisk === "HIGH" ? "badge-red" : s.churnRisk === "MEDIUM" ? "badge-yellow" : "badge-green"}`}>
-                {s.churnRisk === "HIGH" ? "Alto" : s.churnRisk === "MEDIUM" ? "Medio" : "Bajo"}
+              <span className={`badge ${churnBadgeClass(churnRisk)}`}>
+                {churnLabel(churnRisk)}
               </span>
+              <span style={{ fontSize: 11, color: "#94A3B8" }}>{hasAI ? "IA" : "señal"}</span>
             </div>
           </div>
           <div className="metric-card">

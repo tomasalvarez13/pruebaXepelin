@@ -41,8 +41,9 @@ export interface CompanyListItem {
   signals: CompanySignals;
   daysSinceLastInteraction: number | null;
   // Part 2 — LLM enrichment (null until first generated)
-  aiSummary: string | null;
   healthScore: number | null;
+  churnRisk: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+  aiSummary: string | null;
   recommendedActions: RecommendedAction[] | null;
   aiGeneratedAt: string | null;
 }

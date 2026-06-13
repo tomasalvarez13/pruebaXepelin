@@ -4,6 +4,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { CompanySignals } from '../signals/types';
 import {
   ActionPriority,
+  ChurnRiskLevel,
   EnrichmentResult,
   RecommendedAction,
 } from './enrichment.types';
@@ -29,12 +30,14 @@ export interface CompanyProfile {
 
 const MODEL = 'gemini-2.5-flash';
 const VALID_PRIORITIES: ActionPriority[] = ['ALTA', 'MEDIA', 'BAJA'];
+const VALID_CHURN: ChurnRiskLevel[] = ['LOW', 'MEDIUM', 'HIGH'];
 
 const RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    aiSummary: { type: Type.STRING },
     healthScore: { type: Type.INTEGER },
+    churnRisk: { type: Type.STRING, enum: VALID_CHURN },
+    aiSummary: { type: Type.STRING },
     recommendedActions: {
       type: Type.ARRAY,
       items: {
@@ -48,7 +51,7 @@ const RESPONSE_SCHEMA = {
       },
     },
   },
-  required: ['aiSummary', 'healthScore', 'recommendedActions'],
+  required: ['healthScore', 'churnRisk', 'aiSummary', 'recommendedActions'],
 };
 
 @Injectable()
@@ -92,13 +95,18 @@ export class GeminiService {
       'sus señales ya calculadas, genera un análisis breve y accionable en español.',
       '',
       'Reglas:',
+      '- healthScore: entero de 0 a 100 (100 = cuenta muy sana, 0 = crítica),',
+      '  coherente con el riesgo de churn, la mora y la tendencia de volumen.',
+      '- churnRisk: nivel de riesgo de fuga del cliente. Devuelve exactamente uno de',
+      '  LOW, MEDIUM o HIGH. Considera inactividad, caída de volumen, mora y etapa',
+      '  del ciclo de vida. Las señales determinísticas son una referencia fuerte,',
+      '  pero puedes ajustar el nivel si el contexto (operaciones e interacciones',
+      '  recientes) lo justifica.',
       '- aiSummary: 2 a 3 frases, en español, tono profesional y directo. Resume la',
       '  situación de la cuenta y qué la hace prioritaria. No inventes cifras: usa',
       '  solo los datos provistos.',
       '- recommendedActions: entre 2 y 4 acciones concretas que el KAM puede ejecutar,',
       '  cada una con su justificación y prioridad (ALTA, MEDIA o BAJA).',
-      '- healthScore: entero de 0 a 100 (100 = cuenta muy sana, 0 = crítica),',
-      '  coherente con el riesgo de churn, la mora y la tendencia de volumen.',
       '',
       'PERFIL DE LA EMPRESA:',
       JSON.stringify(profile, null, 2),
@@ -153,6 +161,9 @@ export class GeminiService {
       0,
       Math.min(100, Math.round(Number(data.healthScore))),
     );
+    const churnRisk = VALID_CHURN.includes(data.churnRisk as ChurnRiskLevel)
+      ? (data.churnRisk as ChurnRiskLevel)
+      : null;
 
     const rawActions = Array.isArray(data.recommendedActions)
       ? (data.recommendedActions as Record<string, unknown>[])
@@ -168,10 +179,10 @@ export class GeminiService {
       }))
       .filter((a) => a.action.length > 0);
 
-    if (!aiSummary || Number.isNaN(healthScore)) {
+    if (!aiSummary || Number.isNaN(healthScore) || !churnRisk) {
       throw new Error('Gemini: payload incompleto');
     }
 
-    return { aiSummary, healthScore, recommendedActions };
+    return { healthScore, churnRisk, aiSummary, recommendedActions };
   }
 }
