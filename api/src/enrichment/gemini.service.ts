@@ -89,6 +89,13 @@ export class GeminiService {
     profile: CompanyProfile,
     signals: CompanySignals,
   ): string {
+    // Pass the computed quantitative facts (so the model doesn't do arithmetic),
+    // but withhold the deterministic churn verdict so it forms its own judgment
+    // instead of echoing it.
+    const factualSignals: Partial<CompanySignals> = { ...signals };
+    delete factualSignals.churnRisk;
+    delete factualSignals.churnScore;
+
     return [
       'Eres un analista de cartera para los KAM (Key Account Managers) de una',
       'fintech B2B de factoring y confirming. A partir del perfil de la empresa y',
@@ -98,10 +105,10 @@ export class GeminiService {
       '- healthScore: entero de 0 a 100 (100 = cuenta muy sana, 0 = crítica),',
       '  coherente con el riesgo de churn, la mora y la tendencia de volumen.',
       '- churnRisk: nivel de riesgo de fuga del cliente. Devuelve exactamente uno de',
-      '  LOW, MEDIUM o HIGH. Considera inactividad, caída de volumen, mora y etapa',
-      '  del ciclo de vida. Las señales determinísticas son una referencia fuerte,',
-      '  pero puedes ajustar el nivel si el contexto (operaciones e interacciones',
-      '  recientes) lo justifica.',
+      '  LOW, MEDIUM o HIGH, evaluándolo tú mismo a partir de los hechos:',
+      '  inactividad (daysSinceLastOp), caída de volumen (volumeTrendPct), mora',
+      '  (hasOverdue), etapa del ciclo de vida y el contexto de las interacciones',
+      '  recientes.',
       '- aiSummary: 2 a 3 frases, en español, tono profesional y directo. Resume la',
       '  situación de la cuenta y qué la hace prioritaria. No inventes cifras: usa',
       '  solo los datos provistos.',
@@ -111,8 +118,8 @@ export class GeminiService {
       'PERFIL DE LA EMPRESA:',
       JSON.stringify(profile, null, 2),
       '',
-      'SEÑALES CALCULADAS (fuente de verdad, no las recalcules):',
-      JSON.stringify(signals, null, 2),
+      'MÉTRICAS CALCULADAS (hechos, no los recalcules):',
+      JSON.stringify(factualSignals, null, 2),
     ].join('\n');
   }
 
