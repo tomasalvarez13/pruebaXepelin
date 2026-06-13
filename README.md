@@ -89,7 +89,37 @@ El seed crea 2 KAMs y 10 empresas con arquetipos de negocio variados:
 | Mono-producto | Agroindustrias del Sur SpA | Cross-sell candidato |
 | Mid con leve caída | Logística Express MX | MEDIA prioridad |
 
-KAM de demo: `demo@xepelin.com` (María González).
+KAM de demo: `maria@xepelin.com` / `maria123` (María González).
+
+## Parte 2 — Enriquecimiento con IA (Gemini)
+
+Capa narrativa sobre las señales determinísticas. Las señales (churn, prioridad,
+tier) siguen siendo la fuente de verdad para ordenar/filtrar; el LLM solo agrega
+un **resumen**, **acciones recomendadas** y un **health score** (0-100).
+
+- **Modelo:** `gemini-2.5-flash` con salida JSON estructurada (`responseSchema`).
+- **Módulo:** `api/src/enrichment/` (`GeminiService` + `EnrichmentService`).
+- **Disparadores:**
+  - **Cron** diario 06:00 (`@nestjs/schedule`) que re-enriquece empresas cuya data
+    IA falta o tiene más de 20 h. Procesa secuencial con delay para respetar el
+    rate limit del free tier; una empresa que falla no detiene el batch.
+  - **Manual:** `POST /companies/:id/enrich` (JWT + ownership por `kamId`), usado
+    por el botón "Regenerar" en el detalle de empresa.
+- **Persistencia:** columnas `aiSummary`, `healthScore`, `recommendedActions`,
+  `aiGeneratedAt` (ya existían en el schema desde la Parte 1 — **sin migración**).
+- **Sin API key:** si `GEMINI_API_KEY` está vacía, el enriquecimiento se desactiva
+  (cron se omite, el endpoint responde 503) y la UI cae al resumen determinístico.
+
+Probar manualmente:
+
+```bash
+TOKEN=$(curl -s -X POST localhost:4000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"maria@xepelin.com","password":"maria123"}' | jq -r .access_token)
+
+curl -s -X POST localhost:4000/companies/<COMPANY_ID>/enrich \
+  -H "Authorization: Bearer $TOKEN" | jq
+```
 
 ## Deploy
 

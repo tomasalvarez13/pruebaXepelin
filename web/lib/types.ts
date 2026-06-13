@@ -18,6 +18,12 @@ export interface CompanySignals {
   priorityReason: string;
 }
 
+export interface RecommendedAction {
+  action: string;
+  rationale: string;
+  priority: 'ALTA' | 'MEDIA' | 'BAJA';
+}
+
 export interface CompanyListItem {
   id: string;
   legalName: string;
@@ -34,6 +40,11 @@ export interface CompanyListItem {
   notes: string | null;
   signals: CompanySignals;
   daysSinceLastInteraction: number | null;
+  // Part 2 — LLM enrichment (null until first generated)
+  aiSummary: string | null;
+  healthScore: number | null;
+  recommendedActions: RecommendedAction[] | null;
+  aiGeneratedAt: string | null;
 }
 
 export interface Operation {

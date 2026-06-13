@@ -37,6 +37,7 @@ import {
   IconMail,
   IconUsers,
   IconSparkles,
+  IconRefresh,
 } from "@tabler/icons-react";
 
 const CHANNEL_ICONS: Record<string, React.ReactNode> = {
@@ -110,6 +111,21 @@ function generateAISummary(company: CompanyDetail): string {
   return `${company.legalName} requiere monitoreo. Se recomienda mantener contacto periódico para asegurar retención y evaluar potencial de crecimiento.`;
 }
 
+function timeAgo(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "recién";
+  if (mins < 60) return `hace ${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `hace ${hrs} h`;
+  return `hace ${Math.floor(hrs / 24)} d`;
+}
+
+function healthColor(score: number): string {
+  if (score >= 70) return "#15803D";
+  if (score >= 40) return "#D97706";
+  return "#DC2626";
+}
+
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
@@ -141,6 +157,8 @@ export default function CompanyDetailPage() {
   const [statusVal, setStatusVal] = useState("active");
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
@@ -164,6 +182,19 @@ export default function CompanyDetailPage() {
   useEffect(() => {
     if (status === "authenticated") fetchCompany();
   }, [status, fetchCompany]);
+
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    setAiError(null);
+    try {
+      await apiFetch(`/companies/${id}/enrich`, token, { method: "POST" });
+      await fetchCompany();
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "Error al generar análisis");
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -222,7 +253,8 @@ export default function CompanyDetailPage() {
 
   const s = company.signals;
   const volumeData = buildVolumeChart(company.operations);
-  const aiSummary = generateAISummary(company);
+  const hasAI = !!company.aiGeneratedAt;
+  const aiSummary = company.aiSummary || generateAISummary(company);
 
   return (
     <div className="animate-fade-in">
@@ -292,9 +324,66 @@ export default function CompanyDetailPage() {
               <IconSparkles size={16} />
             </div>
             <span className="ai-title">Análisis inteligente</span>
-            <span className="ai-badge">Auto-generado</span>
+            <span className="ai-badge">{hasAI ? "IA · Gemini" : "Determinístico"}</span>
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
+              {company.healthScore !== null && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }} title="Health score (0-100)">
+                  <span style={{ fontSize: 12, color: "#64748B" }}>Health</span>
+                  <span style={{ fontWeight: 700, fontSize: 16, color: healthColor(company.healthScore) }}>
+                    {company.healthScore}
+                  </span>
+                </div>
+              )}
+              <button
+                className="btn btn-secondary"
+                onClick={handleRegenerate}
+                disabled={regenerating}
+                style={{ padding: "7px 14px", fontSize: 13 }}
+              >
+                <IconRefresh size={14} />
+                {regenerating ? "Generando..." : hasAI ? "Regenerar" : "Generar con IA"}
+              </button>
+            </div>
           </div>
           <div className="ai-text">{aiSummary}</div>
+
+          {company.recommendedActions && company.recommendedActions.length > 0 && (
+            <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Acciones recomendadas
+              </div>
+              {company.recommendedActions.map((a, i) => (
+                <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                  <span
+                    className={`badge ${a.priority === "ALTA" ? "badge-red" : a.priority === "MEDIA" ? "badge-yellow" : "badge-green"}`}
+                    style={{ flexShrink: 0, marginTop: 1 }}
+                  >
+                    {a.priority}
+                  </span>
+                  <div>
+                    <div style={{ fontWeight: 600, color: "#1E293B", fontSize: 14 }}>{a.action}</div>
+                    <div style={{ color: "#64748B", fontSize: 13, marginTop: 2, lineHeight: 1.5 }}>{a.rationale}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 10 }}>
+            {hasAI && (
+              <span style={{ fontSize: 12, color: "#94A3B8" }}>
+                Generado por IA · {timeAgo(company.aiGeneratedAt!)}
+              </span>
+            )}
+            {!hasAI && !aiError && (
+              <span style={{ fontSize: 12, color: "#94A3B8" }}>
+                Resumen determinístico — genera el análisis con IA para acciones recomendadas
+              </span>
+            )}
+            {aiError && (
+              <span style={{ fontSize: 12, color: "#DC2626" }}>✕ {aiError}</span>
+            )}
+          </div>
         </div>
 
         <div className="metrics-grid animate-slide-up" style={{ animationDelay: "100ms" }}>

@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { computeSignals } from '../signals/signals.service';
-import { CompanyInput } from '../signals/types';
-import { serializeCompany, toNumber } from '../common/decimal.util';
+import { buildCompanyInput } from '../signals/company-input';
+import { serializeCompany } from '../common/decimal.util';
 import { UpdateCompanyDto } from './companies.dto';
 
 @Injectable()
@@ -24,20 +24,7 @@ export class CompaniesService {
 
     const results = companies.map((c) => {
       const serialized = serializeCompany(c as unknown as Record<string, unknown>);
-      const input: CompanyInput = {
-        lifecycleStage: c.lifecycleStage,
-        creditLineApproved: toNumber(c.creditLineApproved),
-        creditLineUsed: toNumber(c.creditLineUsed),
-        monthlyBilling: toNumber(c.monthlyBilling),
-        operations: c.operations.map((o) => ({
-          type: o.type,
-          amount: toNumber(o.amount),
-          date: o.date,
-          status: o.status,
-          daysPastDue: o.daysPastDue,
-        })),
-      };
-      const signals = computeSignals(input);
+      const signals = computeSignals(buildCompanyInput(c));
       const lastInteractionDate = c.interactions[0]?.date ?? null;
       const daysSinceLastInteraction = lastInteractionDate
         ? Math.floor((Date.now() - lastInteractionDate.getTime()) / (24 * 60 * 60 * 1000))
@@ -86,20 +73,7 @@ export class CompaniesService {
     if (company.kamId !== kamId) throw new ForbiddenException('Not your company');
 
     const serialized = serializeCompany(company as unknown as Record<string, unknown>);
-    const input: CompanyInput = {
-      lifecycleStage: company.lifecycleStage,
-      creditLineApproved: toNumber(company.creditLineApproved),
-      creditLineUsed: toNumber(company.creditLineUsed),
-      monthlyBilling: toNumber(company.monthlyBilling),
-      operations: company.operations.map((o) => ({
-        type: o.type,
-        amount: toNumber(o.amount),
-        date: o.date,
-        status: o.status,
-        daysPastDue: o.daysPastDue,
-      })),
-    };
-    const signals = computeSignals(input);
+    const signals = computeSignals(buildCompanyInput(company));
 
     return { ...serialized, signals };
   }
