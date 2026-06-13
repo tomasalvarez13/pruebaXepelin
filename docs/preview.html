@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Deck preview</title>
+<style>
+  :root{
+    --ink:#16182B; --indigo:#4F46E5; --indigoL:#EEF2FF; --ice:#A5B4FC;
+    --slate:#475569; --muted:#94A3B8; --border:#E2E8F0; --panel:#F8FAFC; --white:#fff;
+    --navy:#4338CA; --cyan:#0E7490; --green:#15803D; --violet:#7C3AED; --red:#DC2626;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#52555f;font-family:'Calibri','Segoe UI',sans-serif;padding:24px;display:flex;flex-direction:column;gap:24px;align-items:center}
+  .slide{position:relative;width:1280px;height:720px;background:#fff;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+  .abs{position:absolute}
+  .mono{font-family:'Consolas','SF Mono',monospace}
+</style></head>
+<body>
+<div id="root"></div>
+<script>
+const PX = i => i*96;
+const root = document.getElementById('root');
+const C = {
+  ink:'#16182B', indigo:'#4F46E5', indigoL:'#EEF2FF', ice:'#A5B4FC',
+  slate:'#475569', muted:'#94A3B8', border:'#E2E8F0', panel:'#F8FAFC', white:'#fff',
+  navy:'#4338CA', cyan:'#0E7490', green:'#15803D', violet:'#7C3AED', red:'#DC2626'
+};
+const MX=0.7, CW=11.93;
+
+function slide(bg){ const d=document.createElement('div'); d.className='slide'; d.style.background=bg||'#fff'; root.appendChild(d); return d; }
+function add(s, {x,y,w,h, fs, color, bold, italic, font, align, valign, lh, bg, radius, border, ls, z}){
+  const e=document.createElement('div'); e.className='abs'+(font==='mono'?' mono':'');
+  e.style.left=PX(x)+'px'; e.style.top=PX(y)+'px';
+  if(w!=null)e.style.width=PX(w)+'px'; if(h!=null)e.style.height=PX(h)+'px';
+  if(fs)e.style.fontSize=fs+'pt';
+  if(color)e.style.color=color;
+  if(bold)e.style.fontWeight='700';
+  if(italic)e.style.fontStyle='italic';
+  if(align)e.style.textAlign=align;
+  if(lh)e.style.lineHeight=lh;
+  if(bg)e.style.background=bg;
+  if(radius!=null)e.style.borderRadius=PX(radius)+'px';
+  if(border)e.style.border=border;
+  if(ls)e.style.letterSpacing=ls+'px';
+  if(z)e.style.zIndex=z;
+  if(valign){e.style.display='flex';e.style.flexDirection='column';e.style.justifyContent=valign==='middle'?'center':'flex-start';}
+  return e;
+}
+function txt(s, opts, content){ const e=add(s,opts); e.innerHTML=content; s.appendChild(e); return e; }
+function box(s, opts){ const e=add(s,opts); s.appendChild(e); return e; }
+function header(s, num, title){
+  txt(s,{x:MX,y:0.45,w:CW,h:0.7,fs:28,bold:true,color:C.ink},
+    `<span style="color:${C.indigo}">${num}</span>&nbsp;&nbsp;&nbsp;${title}`);
+}
+function footer(s,p){
+  txt(s,{x:MX,y:7.02,w:4,fs:9,color:C.muted},'Mini CRM · KAMs');
+  txt(s,{x:13.333-MX-2,y:7.02,w:2,fs:9,color:C.muted,align:'right'},p+' / 05');
+}
+
+/* ===== Slide 1 ===== */
+{ const s=slide(C.ink);
+  box(s,{x:MX,y:2.15,w:0.4,h:0.4,bg:C.indigo,radius:0.06});
+  txt(s,{x:MX,y:2.75,w:11,fs:46,bold:true,color:'#fff'},'Mini CRM para KAMs');
+  txt(s,{x:MX,y:3.95,w:11,fs:21,color:C.ice},'Arquitectura, Stack y Decisiones de Producto');
+  txt(s,{x:MX,y:6.6,w:11,fs:13,color:C.muted},'Prueba Técnica GE II — Part 1 &nbsp;·&nbsp; Junio 2026');
+}
+
+/* ===== Slide 2 Architecture ===== */
+{ const s=slide('#fff'); header(s,'01','Diagrama de Arquitectura');
+  const layers=[
+    {color:C.indigo, label:'Frontend · Vercel', lines:['Next.js 14 (App Router)','Mantine v7 · Recharts','AuthProvider (JWT + localStorage)','TypeScript strict']},
+    {color:C.green, label:'Backend · Railway', lines:['NestJS + Passport JWT','Prisma 5 ORM','Signals Engine (on-read)','Bcrypt · ValidationPipe']},
+    {color:'#C2410C', label:'PostgreSQL · Railway', lines:['Kam · Company','Operation · Interaction','Índices compuestos','Decimal(14,2) financiero']},
+  ];
+  const gap=0.55, cardW=(CW-2*gap)/3, cardY=1.65, cardH=2.75;
+  layers.forEach((L,i)=>{ const x=MX+i*(cardW+gap);
+    box(s,{x,y:cardY,w:cardW,h:cardH,bg:'#fff',border:'1px solid '+C.border,radius:0.08});
+    box(s,{x:x+0.3,y:cardY+0.32,w:0.24,h:0.24,bg:L.color,radius:0.04});
+    txt(s,{x:x+0.66,y:cardY+0.26,w:cardW-0.9,fs:14,bold:true,color:L.color},L.label);
+    txt(s,{x:x+0.34,y:cardY+0.95,w:cardW-0.6,fs:12,color:C.slate,lh:1.55},
+      L.lines.map(t=>'• '+t).join('<br>'));
+  });
+  // arrows
+  [MX+cardW+0.05, MX+2*cardW+gap+0.05].forEach(ax=>{
+    txt(s,{x:ax,y:cardY+cardH/2-0.16,w:gap-0.1,fs:18,color:C.muted,align:'center'},'→');
+  });
+  const pY=4.95;
+  box(s,{x:MX,y:pY,w:CW,h:1.55,bg:C.panel,border:'1px solid '+C.border,radius:0.08});
+  txt(s,{x:MX+0.35,y:pY+0.22,w:4,fs:11,bold:true,color:C.indigo,ls:2},'ENDPOINTS');
+  txt(s,{x:MX+0.35,y:pY+0.55,w:CW-0.7,fs:11,color:C.slate,font:'mono'},'POST /auth/login → JWT&nbsp;&nbsp;&nbsp;&nbsp;GET /me&nbsp;&nbsp;&nbsp;&nbsp;GET /companies&nbsp;&nbsp;&nbsp;&nbsp;GET /companies/:id&nbsp;&nbsp;&nbsp;&nbsp;PATCH /companies/:id');
+  txt(s,{x:MX+0.35,y:pY+1.02,w:CW-0.7,fs:11.5,italic:true,color:C.indigo},'Login → JWT → Bearer → Guard valida → Service filtra por kamId → Signals computan → Response');
+  footer(s,'01');
+}
+
+/* ===== Slide 3 Stack ===== */
+{ const s=slide('#fff'); header(s,'02','Stack Elegido');
+  const data=[
+    ['Frontend','Next.js 14 (App Router)','Server components, file-based routing, deploy instantáneo en Vercel'],
+    ['UI','Mantine v7 + CSS custom','Componentes accesibles, diseño premium estilo Stripe / Linear'],
+    ['Charts','Recharts','Declarativa y liviana, ideal para el AreaChart de volumen'],
+    ['Backend','NestJS + TypeScript','Framework opinado: DI, módulos, guards y pipes'],
+    ['Auth','JWT + Passport + bcrypt','Stateless, hash de passwords, guard protege cada endpoint'],
+    ['ORM','Prisma 5','Queries type-safe, migraciones declarativas'],
+    ['DB','PostgreSQL','ACID, Decimal(14,2), enums, índices compuestos'],
+    ['Deploy','Railway + Vercel','Deploy desde GitHub, zero-config'],
+  ];
+  const cols=[1.7,3.4,CW-5.1], x0=MX, y0=1.65, headH=0.5, rowH=0.55;
+  const cx=[x0, x0+cols[0], x0+cols[0]+cols[1]];
+  // header row
+  box(s,{x:x0,y:y0,w:CW,h:headH,bg:C.indigo});
+  ['Capa','Tecnología','Por qué'].forEach((t,i)=>txt(s,{x:cx[i]+0.08,y:y0,w:cols[i]-0.16,h:headH,fs:13,bold:true,color:'#fff',valign:'middle'},t));
+  data.forEach((r,i)=>{ const y=y0+headH+i*rowH; const fill=i%2===0?'#fff':C.panel;
+    box(s,{x:x0,y,w:CW,h:rowH,bg:fill,border:'0.5px solid '+C.border});
+    txt(s,{x:cx[0]+0.08,y,w:cols[0]-0.16,h:rowH,fs:12.5,bold:true,color:C.ink,valign:'middle'},r[0]);
+    txt(s,{x:cx[1]+0.08,y,w:cols[1]-0.16,h:rowH,fs:12,color:C.indigo,valign:'middle'},r[1]);
+    txt(s,{x:cx[2]+0.08,y,w:cols[2]-0.16,h:rowH,fs:12,color:C.slate,valign:'middle'},r[2]);
+  });
+  footer(s,'02');
+}
+
+/* ===== Slide 4 Data Model ===== */
+{ const s=slide('#fff'); header(s,'03','Modelo de Datos');
+  function entity(x,y,w,hc,title,fields){
+    const rowH=0.275, h=0.5+fields.length*rowH+0.12;
+    box(s,{x,y,w,h,bg:'#fff',border:'1.25px solid '+hc,radius:0.06});
+    box(s,{x,y,w,h:0.46,bg:hc,radius:0.06});
+    box(s,{x,y:y+0.23,w,h:0.23,bg:hc});
+    txt(s,{x:x+0.16,y,w:w-0.3,h:0.46,fs:14,bold:true,color:'#fff',valign:'middle',z:2},title);
+    let fy=y+0.56;
+    for(const [n,t,k] of fields){
+      let nc='#334155',b=false,it=false;
+      if(k==='pk'){nc=hc;b=true;} if(k==='fk'){nc=C.red;b=true;} if(k==='rel'){nc=C.muted;it=true;}
+      txt(s,{x:x+0.16,y:fy,w:w*0.52,h:rowH,fs:9.5,bold:b,italic:it,color:nc,valign:'middle'},n);
+      if(t)txt(s,{x:x+w*0.52,y:fy,w:w*0.46,h:rowH,fs:9.5,color:C.muted,valign:'middle'},t);
+      fy+=rowH;
+    }
+    return {x,y,w,h,cy:y+h/2};
+  }
+  const kam=entity(MX,1.95,2.45,C.navy,'Kam',[['id','cuid PK','pk'],['name','String',''],['email','String unique',''],['password','String (bcrypt)',''],['createdAt','DateTime',''],['→ companies[]','','rel']]);
+  const compX=3.85,compW=3.55,compY=1.45;
+  const comp=entity(compX,compY,compW,C.cyan,'Company',[['id','cuid PK','pk'],['kamId','FK → Kam','fk'],['legalName','String',''],['taxId','String unique',''],['industry / country','String · CL|MX',''],['segment','PYME|MID|CORP',''],['lifecycleStage','Enum',''],['status','String',''],['creditLineApproved','Decimal',''],['creditLineUsed','Decimal',''],['monthlyBilling','Decimal',''],['notes','Text?',''],['onboardedAt','DateTime',''],['→ operations[] · interactions[]','','rel']]);
+  const opX=8.85,opW=3.05;
+  const op=entity(opX,1.55,opW,C.green,'Operation',[['id','cuid PK','pk'],['companyId','FK → Company','fk'],['type','FACT|CONF|PAGO',''],['amount','Decimal(14,2)',''],['date / status','DateTime / Enum',''],['daysPastDue','Int','']]);
+  const intr=entity(opX,4.05,opW,C.violet,'Interaction',[['id','cuid PK','pk'],['companyId','FK → Company','fk'],['channel','WA|CALL|EMAIL',''],['date','DateTime',''],['summary','Text','']]);
+  function connect(ax,ay,bx,color){
+    box(s,{x:ax,y:ay,w:bx-ax,h:0,border:'0',bg:C.muted}); // line via thin div
+    const ln=add(s,{x:ax,y:ay-0.01,w:bx-ax,h:0.02,bg:C.muted}); s.appendChild(ln);
+    txt(s,{x:ax+(bx-ax)/2-0.25,y:ay-0.32,w:0.5,fs:9.5,bold:true,color,align:'center'},'1:N →');
+  }
+  connect(kam.x+kam.w,kam.cy,compX,C.indigo);
+  connect(compX+compW,op.cy,opX,C.green);
+  connect(compX+compW,intr.cy,opX,C.violet);
+  box(s,{x:MX,y:6.55,w:CW,h:0.4,bg:C.panel,border:'0.75px solid '+C.border,radius:0.05});
+  txt(s,{x:MX+0.25,y:6.55,w:CW-0.5,h:0.4,fs:10,color:C.slate,font:'mono',valign:'middle'},'@@index([kamId])&nbsp;&nbsp;·&nbsp;&nbsp;@@index([companyId, date])&nbsp;&nbsp;·&nbsp;&nbsp;Decimal(14,2) para todos los montos financieros');
+}
+
+/* ===== Slide 5 Product Decisions ===== */
+{ const s=slide('#fff'); header(s,'04','Decisiones de Producto');
+  const dec=[
+    ['Dashboard con KPIs + tabla','Visión rápida de toda la cartera del KAM en una pantalla'],
+    ['Señales determinísticas on-read','Churn, expansión y prioridad: auditables y reproducibles'],
+    ['AI Summary por reglas','Simula un LLM de forma determinística, sin costos de API'],
+    ['Aislamiento por KAM con JWT','Cada KAM solo ve sus empresas; guard en cada endpoint'],
+    ['Gráfico de volumen 12 meses','Tendencias visuales para detectar caídas de actividad'],
+    ['Notas + timeline de interacciones','CRM accionable, no solo un dashboard de métricas'],
+    ['Diseño premium CSS-first','Stripe / Linear / Mercury como referencia visual'],
+  ];
+  let dy=1.7; const rowH=0.72;
+  dec.forEach(([t,d])=>{
+    box(s,{x:MX,y:dy+0.06,w:0.26,h:0.26,bg:C.indigo,radius:0.04});
+    txt(s,{x:MX+0.5,y:dy,w:4.9,fs:14,bold:true,color:C.ink},t);
+    txt(s,{x:MX+5.5,y:dy,w:CW-5.5,fs:12.5,color:C.slate},d);
+    if(dy+rowH<6.4) box(s,{x:MX,y:dy+rowH-0.16,w:CW,h:0.006,bg:C.border});
+    dy+=rowH;
+  });
+  footer(s,'04');
+}
+
+/* ===== Slide 6 Left Out ===== */
+{ const s=slide('#fff'); header(s,'05','Qué Dejamos Fuera y Por Qué');
+  const stateColor={'Part 2':C.indigo,'Deliberado':C.slate,'Simplificado':'#B45309','Fuera':C.red,'Innecesario':C.muted,'Parcial':C.cyan};
+  const data=[
+    ['Resumen con LLM real','Part 2','Schema ya listo con campos aiSummary / recommendedActions'],
+    ['CRUD de interacciones','Deliberado','Se priorizó el motor de señales y el pulido visual'],
+    ['Refresh token','Simplificado','Token de 8h es suficiente para una prueba técnica'],
+    ['Tests unitarios / e2e','Fuera','Se priorizó feature-completeness sobre cobertura'],
+    ['Paginación','Innecesario','~5-6 empresas por KAM, no hace falta'],
+    ['Búsqueda por texto','Deliberado','Los filtros existentes cubren carteras de ~10 empresas'],
+    ['Responsive mobile','Parcial','El KAM trabaja principalmente desde laptop'],
+  ];
+  const cols=[3.1,2.0,CW-5.1], x0=MX, y0=1.65, headH=0.5, rowH=0.55;
+  const cx=[x0,x0+cols[0],x0+cols[0]+cols[1]];
+  box(s,{x:x0,y:y0,w:CW,h:headH,bg:C.ink});
+  ['Feature','Estado','Razón'].forEach((t,i)=>txt(s,{x:cx[i]+0.08,y:y0,w:cols[i]-0.16,h:headH,fs:12.5,bold:true,color:'#fff',valign:'middle'},t));
+  data.forEach((r,i)=>{ const y=y0+headH+i*rowH; const fill=i%2===0?'#fff':C.panel;
+    box(s,{x:x0,y,w:CW,h:rowH,bg:fill,border:'0.5px solid '+C.border});
+    txt(s,{x:cx[0]+0.08,y,w:cols[0]-0.16,h:rowH,fs:12,bold:true,color:C.ink,valign:'middle'},r[0]);
+    txt(s,{x:cx[1]+0.08,y,w:cols[1]-0.16,h:rowH,fs:12,bold:true,color:stateColor[r[1]],valign:'middle'},r[1]);
+    txt(s,{x:cx[2]+0.08,y,w:cols[2]-0.16,h:rowH,fs:12,color:C.slate,valign:'middle'},r[2]);
+  });
+  box(s,{x:MX,y:6.35,w:CW,h:0.55,bg:C.indigoL,radius:0.06});
+  txt(s,{x:MX,y:6.35,w:CW,h:0.55,fs:12.5,italic:true,bold:true,color:C.indigo,align:'center',valign:'middle'},'Se priorizó lo que demuestra criterio de producto por sobre la completitud técnica.');
+  footer(s,'05');
+}
+</script>
+</body></html>

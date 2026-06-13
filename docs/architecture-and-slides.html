@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Xepelin Mini CRM — Arquitectura y Decisiones</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: #0F172A;
+    background: white;
+    line-height: 1.6;
+  }
+
+  .page {
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 60px 48px;
+    page-break-after: always;
+    min-height: 100vh;
+  }
+
+  .page:last-child { page-break-after: avoid; }
+
+  .page-number {
+    position: fixed;
+    bottom: 24px;
+    right: 48px;
+    font-size: 12px;
+    color: #94A3B8;
+  }
+
+  .cover {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 90vh;
+  }
+
+  .cover-logo {
+    width: 64px; height: 64px;
+    background: #4F46E5;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 32px;
+    font-weight: 800;
+    margin-bottom: 32px;
+  }
+
+  .cover h1 {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    line-height: 1.1;
+    margin-bottom: 16px;
+  }
+
+  .cover .subtitle {
+    font-size: 20px;
+    color: #64748B;
+    font-weight: 400;
+    margin-bottom: 48px;
+  }
+
+  .cover-meta {
+    font-size: 14px;
+    color: #94A3B8;
+  }
+
+  .cover-meta span { margin-right: 24px; }
+
+  h2 {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.8px;
+    margin-bottom: 32px;
+    color: #0F172A;
+  }
+
+  h2 .num {
+    color: #4F46E5;
+    margin-right: 12px;
+  }
+
+  h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 24px 0 12px;
+    color: #1E293B;
+  }
+
+  p, li {
+    font-size: 15px;
+    color: #334155;
+    line-height: 1.7;
+  }
+
+  ul { padding-left: 20px; margin-bottom: 16px; }
+  li { margin-bottom: 6px; }
+
+  .tag {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 6px;
+    margin-bottom: 6px;
+  }
+
+  .tag-indigo { background: #EEF2FF; color: #4F46E5; }
+  .tag-green { background: #DCFCE7; color: #15803D; }
+  .tag-cyan { background: #ECFEFF; color: #0891B2; }
+  .tag-orange { background: #FFF7ED; color: #C2410C; }
+  .tag-red { background: #FEE2E2; color: #DC2626; }
+  .tag-violet { background: #EDE9FE; color: #7C3AED; }
+  .tag-gray { background: #F1F5F9; color: #475569; }
+
+  .card {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #4F46E5;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 24px;
+    font-size: 13px;
+  }
+
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    background: #F1F5F9;
+    font-weight: 600;
+    color: #475569;
+    border-bottom: 2px solid #E2E8F0;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #F1F5F9;
+    color: #334155;
+  }
+
+  .arch-diagram {
+    width: 100%;
+    margin: 24px 0;
+  }
+
+  .divider {
+    height: 1px;
+    background: #E2E8F0;
+    margin: 32px 0;
+  }
+
+  .highlight {
+    background: #FEF3C7;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+
+  .decision-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    align-items: flex-start;
+  }
+
+  .decision-icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 18px;
+  }
+
+  .decision-content { flex: 1; }
+  .decision-content strong { color: #0F172A; }
+
+  @media print {
+    .page { padding: 40px 36px; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ========== COVER ========== -->
+<div class="page cover">
+  <div class="cover-logo">X</div>
+  <h1>Mini CRM para KAMs</h1>
+  <div class="subtitle">Arquitectura, Stack y Decisiones de Producto</div>
+  <div class="cover-meta">
+    <span>Prueba Técnica GE II — Part 1</span>
+    <span>Junio 2026</span>
+  </div>
+</div>
+
+<!-- ========== SLIDE 1: ARCHITECTURE ========== -->
+<div class="page">
+  <h2><span class="num">01</span>Diagrama de Arquitectura</h2>
+
+  <svg class="arch-diagram" viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg" style="font-family: Inter, sans-serif;">
+    <!-- Background layers -->
+    <rect x="0" y="0" width="900" height="520" rx="12" fill="#FAFBFC"/>
+
+    <!-- Client Layer -->
+    <rect x="20" y="16" width="860" height="100" rx="10" fill="#EEF2FF" stroke="#C7D2FE" stroke-width="1"/>
+    <text x="40" y="38" font-size="11" font-weight="600" fill="#4F46E5" letter-spacing="0.5">FRONTEND — VERCEL</text>
+
+    <rect x="40" y="48" width="160" height="56" rx="8" fill="white" stroke="#C7D2FE" stroke-width="1"/>
+    <text x="120" y="72" text-anchor="middle" font-size="13" font-weight="600" fill="#1E293B">Next.js 14</text>
+    <text x="120" y="90" text-anchor="middle" font-size="10" fill="#64748B">App Router · RSC</text>
+
+    <rect x="220" y="48" width="160" height="56" rx="8" fill="white" stroke="#C7D2FE" stroke-width="1"/>
+    <text x="300" y="72" text-anchor="middle" font-size="13" font-weight="600" fill="#1E293B">Mantine v7</text>
+    <text x="300" y="90" text-anchor="middle" font-size="10" fill="#64748B">UI Components</text>
+
+    <rect x="400" y="48" width="160" height="56" rx="8" fill="white" stroke="#C7D2FE" stroke-width="1"/>
+    <text x="480" y="72" text-anchor="middle" font-size="13" font-weight="600" fill="#1E293B">Recharts</text>
+    <text x="480" y="90" text-anchor="middle" font-size="10" fill="#64748B">Visualización</text>
+
+    <rect x="580" y="48" width="160" height="56" rx="8" fill="white" stroke="#C7D2FE" stroke-width="1"/>
+    <text x="660" y="72" text-anchor="middle" font-size="13" font-weight="600" fill="#1E293B">AuthProvider</text>
+    <text x="660" y="90" text-anchor="middle" font-size="10" fill="#64748B">JWT + localStorage</text>
+
+    <rect x="760" y="48" width="108" height="56" rx="8" fill="white" stroke="#C7D2FE" stroke-width="1"/>
+    <text x="814" y="72" text-anchor="middle" font-size="13" font-weight="600" fill="#1E293B">TypeScript</text>
+    <text x="814" y="90" text-anchor="middle" font-size="10" fill="#64748B">Tipos compartidos</text>
+
+    <!-- Arrow down -->
+    <line x1="450" y1="116" x2="450" y2="150" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="460" y="138" font-size="10" fill="#64748B">HTTPS + Bearer Token</text>
+
+    <!-- API Layer -->
+    <rect x="20" y="150" width="860" height="160" rx="10" fill="#ECFEFF" stroke="#A5F3FC" stroke-width="1"/>
+    <text x="40" y="172" font-size="11" font-weight="600" fill="#0891B2" letter-spacing="0.5">BACKEND — RAILWAY</text>
+
+    <rect x="40" y="184" width="120" height="56" rx="8" fill="white" stroke="#A5F3FC" stroke-width="1"/>
+    <text x="100" y="208" text-anchor="middle" font-size="13" font-weight="600" fill="#1E293B">NestJS</text>
+    <text x="100" y="226" text-anchor="middle" font-size="10" fill="#64748B">Framework</text>
+
+    <rect x="178" y="184" width="120" height="56" rx="8" fill="white" stroke="#A5F3FC" stroke-width="1"/>
+    <text x="238" y="208" text-anchor="middle" font-size="13" font-weight="600" fill="#1E293B">Passport</text>
+    <text x="238" y="226" text-anchor="middle" font-size="10" fill="#64748B">JWT Guard</text>
+
+    <rect x="316" y="184" width="120" height="56" rx="8" fill="white" stroke="#A5F3FC" stroke-width="1"/>
+    <text x="376" y="208" text-anchor="middle" font-size="13" font-weight="600" fill="#1E293B">Prisma 5</text>
+    <text x="376" y="226" text-anchor="middle" font-size="10" fill="#64748B">ORM</text>
+
+    <rect x="454" y="184" width="120" height="56" rx="8" fill="white" stroke="#A5F3FC" stroke-width="1"/>
+    <text x="514" y="208" text-anchor="middle" font-size="13" font-weight="600" fill="#1E293B">Signals</text>
+    <text x="514" y="226" text-anchor="middle" font-size="10" fill="#64748B">Motor de cálculo</text>
+
+    <rect x="592" y="184" width="120" height="56" rx="8" fill="white" stroke="#A5F3FC" stroke-width="1"/>
+    <text x="652" y="208" text-anchor="middle" font-size="13" font-weight="600" fill="#1E293B">Bcrypt</text>
+    <text x="652" y="226" text-anchor="middle" font-size="10" fill="#64748B">Hash passwords</text>
+
+    <rect x="730" y="184" width="138" height="56" rx="8" fill="white" stroke="#A5F3FC" stroke-width="1"/>
+    <text x="799" y="208" text-anchor="middle" font-size="13" font-weight="600" fill="#1E293B">ValidationPipe</text>
+    <text x="799" y="226" text-anchor="middle" font-size="10" fill="#64748B">class-validator</text>
+
+    <!-- Endpoints -->
+    <rect x="40" y="254" width="828" height="44" rx="8" fill="white" stroke="#A5F3FC" stroke-width="1"/>
+    <text x="60" y="278" font-size="11" font-weight="600" fill="#0891B2">ENDPOINTS:</text>
+    <text x="165" y="278" font-size="11" fill="#334155">POST /auth/login</text>
+    <text x="322" y="278" font-size="11" fill="#334155">GET /me</text>
+    <text x="420" y="278" font-size="11" fill="#334155">GET /companies</text>
+    <text x="570" y="278" font-size="11" fill="#334155">GET /companies/:id</text>
+    <text x="735" y="278" font-size="11" fill="#334155">PATCH /companies/:id</text>
+
+    <!-- Arrow down -->
+    <line x1="450" y1="310" x2="450" y2="340" stroke="#94A3B8" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="460" y="330" font-size="10" fill="#64748B">Prisma Client</text>
+
+    <!-- DB Layer -->
+    <rect x="20" y="340" width="420" height="100" rx="10" fill="#F0FDF4" stroke="#BBF7D0" stroke-width="1"/>
+    <text x="40" y="362" font-size="11" font-weight="600" fill="#15803D" letter-spacing="0.5">BASE DE DATOS — RAILWAY POSTGRES</text>
+
+    <rect x="40" y="374" width="90" height="52" rx="8" fill="white" stroke="#BBF7D0" stroke-width="1"/>
+    <text x="85" y="396" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">Kam</text>
+    <text x="85" y="414" text-anchor="middle" font-size="10" fill="#64748B">auth + owner</text>
+
+    <rect x="148" y="374" width="90" height="52" rx="8" fill="white" stroke="#BBF7D0" stroke-width="1"/>
+    <text x="193" y="396" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">Company</text>
+    <text x="193" y="414" text-anchor="middle" font-size="10" fill="#64748B">cartera</text>
+
+    <rect x="256" y="374" width="90" height="52" rx="8" fill="white" stroke="#BBF7D0" stroke-width="1"/>
+    <text x="301" y="396" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">Operation</text>
+    <text x="301" y="414" text-anchor="middle" font-size="10" fill="#64748B">factoring</text>
+
+    <rect x="364" y="374" width="90" height="52" rx="8" fill="white" stroke="#BBF7D0" stroke-width="1"/>
+    <text x="409" y="396" text-anchor="middle" font-size="12" font-weight="600" fill="#1E293B">Interaction</text>
+    <text x="409" y="414" text-anchor="middle" font-size="10" fill="#64748B">timeline</text>
+
+    <!-- Signals Engine detail -->
+    <rect x="460" y="340" width="420" height="100" rx="10" fill="#FEF3C7" stroke="#FDE68A" stroke-width="1"/>
+    <text x="480" y="362" font-size="11" font-weight="600" fill="#B45309" letter-spacing="0.5">SIGNALS ENGINE — CÁLCULO ON-READ</text>
+    <text x="480" y="386" font-size="12" fill="#334155">Churn risk score (0–7) → LOW / MEDIUM / HIGH</text>
+    <text x="480" y="406" font-size="12" fill="#334155">Expansion flags (SOW, línea, mono-producto)</text>
+    <text x="480" y="426" font-size="12" fill="#334155">Priority label (ALTA / MEDIA / BAJA)</text>
+
+    <!-- Data flow labels -->
+    <rect x="20" y="460" width="860" height="48" rx="10" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1"/>
+    <text x="40" y="484" font-size="11" font-weight="600" fill="#64748B">FLUJO:</text>
+    <text x="100" y="484" font-size="11" fill="#334155">Login → JWT → Bearer en cada request → Guard valida → Service filtra por kamId → Signals calculan métricas → Response al frontend</text>
+
+    <!-- Arrow marker -->
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#94A3B8"/>
+      </marker>
+    </defs>
+  </svg>
+
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-title">Frontend</div>
+      <p style="font-size:13px">Next.js 14 en Vercel con auth custom vía JWT almacenado en localStorage</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Backend</div>
+      <p style="font-size:13px">NestJS con Passport JWT guard y señales determinísticas calculadas on-read</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Datos</div>
+      <p style="font-size:13px">PostgreSQL en Railway con Prisma ORM, 4 tablas, indexes en (kamId) y (companyId, date)</p>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 2: STACK ========== -->
+<div class="page">
+  <h2><span class="num">02</span>Stack Elegido</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Capa</th>
+        <th>Tecnología</th>
+        <th>Por qué</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Frontend</strong></td>
+        <td>Next.js 14 (App Router)</td>
+        <td>Server components, file-based routing, deploy instant en Vercel. Estándar de mercado para dashboards React.</td>
+      </tr>
+      <tr>
+        <td><strong>UI</strong></td>
+        <td>Mantine v7 + CSS custom</td>
+        <td>Componentes accesibles out-of-the-box, customización vía CSS variables. Se complementó con CSS puro para el diseño premium (Stripe/Linear style).</td>
+      </tr>
+      <tr>
+        <td><strong>Charts</strong></td>
+        <td>Recharts</td>
+        <td>Librería React-native para gráficos, declarativa, liviana. Ideal para el AreaChart de volumen financiado.</td>
+      </tr>
+      <tr>
+        <td><strong>Backend</strong></td>
+        <td>NestJS + TypeScript</td>
+        <td>Framework opinado con DI, módulos, guards y pipes. Estructura limpia para una API con auth, validación y lógica de negocio.</td>
+      </tr>
+      <tr>
+        <td><strong>Auth</strong></td>
+        <td>JWT + Passport + bcrypt</td>
+        <td>Auth stateless, cada KAM recibe un token firmado. Bcrypt para hash de passwords. Guard protege todos los endpoints excepto login y health.</td>
+      </tr>
+      <tr>
+        <td><strong>ORM</strong></td>
+        <td>Prisma 5</td>
+        <td>Type-safe queries, migraciones declarativas, cliente generado. Simplifica el manejo de Decimal y relaciones.</td>
+      </tr>
+      <tr>
+        <td><strong>DB</strong></td>
+        <td>PostgreSQL</td>
+        <td>ACID, soporte nativo para Decimal(14,2), enums, índices compuestos. Addon nativo de Railway.</td>
+      </tr>
+      <tr>
+        <td><strong>Deploy</strong></td>
+        <td>Railway + Vercel</td>
+        <td>Railway: deploy desde GitHub con Dockerfile, PostgreSQL addon integrado. Vercel: zero-config para Next.js, preview deploys automáticos.</td>
+      </tr>
+      <tr>
+        <td><strong>Lenguaje</strong></td>
+        <td>TypeScript end-to-end</td>
+        <td>Tipos compartidos entre frontend y backend. Reduce errores en runtime, mejora DX y refactorizabilidad.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Decisiones de stack notables</h3>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Auth custom vs NextAuth</div>
+      <p style="font-size:13px">Se empezó con NextAuth pero se migró a JWT custom para que cada KAM solo vea sus empresas. NextAuth agrega complejidad innecesaria cuando la auth es un POST simple con bcrypt + JWT.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Señales on-read vs stored</div>
+      <p style="font-size:13px">Las métricas (churn risk, expansion, priority) se calculan en cada request, no se almacenan. Evita stale data y simplifica el modelo. Aceptable para <100 empresas por KAM.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 3: DATA MODEL ========== -->
+<div class="page">
+  <h2><span class="num">03</span>Modelo de Datos</h2>
+
+  <svg viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg" style="font-family: Inter, sans-serif; width: 100%; margin-bottom: 24px;">
+    <rect x="0" y="0" width="900" height="400" rx="12" fill="#FAFBFC"/>
+
+    <!-- Kam -->
+    <rect x="30" y="40" width="190" height="180" rx="10" fill="white" stroke="#C7D2FE" stroke-width="2"/>
+    <rect x="30" y="40" width="190" height="36" rx="10" fill="#4F46E5"/>
+    <rect x="30" y="60" width="190" height="16" fill="#4F46E5"/>
+    <text x="125" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="white">Kam</text>
+    <text x="44" y="100" font-size="11" fill="#4F46E5" font-weight="600">id</text><text x="100" y="100" font-size="11" fill="#64748B">cuid PK</text>
+    <text x="44" y="120" font-size="11" fill="#334155">name</text><text x="100" y="120" font-size="11" fill="#64748B">String</text>
+    <text x="44" y="140" font-size="11" fill="#334155">email</text><text x="100" y="140" font-size="11" fill="#64748B">String unique</text>
+    <text x="44" y="160" font-size="11" fill="#334155">password</text><text x="100" y="160" font-size="11" fill="#64748B">String (bcrypt)</text>
+    <text x="44" y="180" font-size="11" fill="#334155">createdAt</text><text x="100" y="180" font-size="11" fill="#64748B">DateTime</text>
+    <text x="44" y="200" font-size="11" fill="#94A3B8" font-style="italic">→ companies[]</text>
+
+    <!-- Arrow Kam → Company -->
+    <line x1="220" y1="130" x2="280" y2="130" stroke="#4F46E5" stroke-width="2" marker-end="url(#arrow2)"/>
+    <text x="240" y="122" font-size="9" fill="#4F46E5" font-weight="500">1:N</text>
+
+    <!-- Company -->
+    <rect x="280" y="16" width="240" height="370" rx="10" fill="white" stroke="#0891B2" stroke-width="2"/>
+    <rect x="280" y="16" width="240" height="36" rx="10" fill="#0891B2"/>
+    <rect x="280" y="36" width="240" height="16" fill="#0891B2"/>
+    <text x="400" y="40" text-anchor="middle" font-size="14" font-weight="700" fill="white">Company</text>
+    <text x="294" y="76" font-size="11" fill="#0891B2" font-weight="600">id</text><text x="380" y="76" font-size="11" fill="#64748B">cuid PK</text>
+    <text x="294" y="96" font-size="11" fill="#0891B2" font-weight="600">kamId</text><text x="380" y="96" font-size="11" fill="#64748B">FK → Kam</text>
+    <text x="294" y="116" font-size="11" fill="#334155">legalName</text><text x="380" y="116" font-size="11" fill="#64748B">String</text>
+    <text x="294" y="136" font-size="11" fill="#334155">taxId</text><text x="380" y="136" font-size="11" fill="#64748B">String unique</text>
+    <text x="294" y="156" font-size="11" fill="#334155">industry</text><text x="380" y="156" font-size="11" fill="#64748B">String</text>
+    <text x="294" y="176" font-size="11" fill="#334155">country</text><text x="380" y="176" font-size="11" fill="#64748B">CL | MX</text>
+    <text x="294" y="196" font-size="11" fill="#334155">segment</text><text x="380" y="196" font-size="11" fill="#64748B">PYME|MID|CORP</text>
+    <text x="294" y="216" font-size="11" fill="#334155">lifecycleStage</text><text x="400" y="216" font-size="11" fill="#64748B">Enum</text>
+    <text x="294" y="236" font-size="11" fill="#334155">status</text><text x="380" y="236" font-size="11" fill="#64748B">String</text>
+    <text x="294" y="256" font-size="11" fill="#334155">creditLineApproved</text><text x="430" y="256" font-size="11" fill="#64748B">Decimal</text>
+    <text x="294" y="276" font-size="11" fill="#334155">creditLineUsed</text><text x="410" y="276" font-size="11" fill="#64748B">Decimal</text>
+    <text x="294" y="296" font-size="11" fill="#334155">monthlyBilling</text><text x="410" y="296" font-size="11" fill="#64748B">Decimal</text>
+    <text x="294" y="316" font-size="11" fill="#334155">notes</text><text x="380" y="316" font-size="11" fill="#64748B">Text?</text>
+    <text x="294" y="336" font-size="11" fill="#334155">onboardedAt</text><text x="390" y="336" font-size="11" fill="#64748B">DateTime</text>
+    <text x="294" y="356" font-size="11" fill="#94A3B8" font-style="italic">→ operations[], interactions[]</text>
+    <text x="294" y="374" font-size="10" fill="#C026D3" font-weight="500">@@index([kamId])</text>
+
+    <!-- Arrow Company → Operation -->
+    <line x1="520" y1="100" x2="580" y2="100" stroke="#0891B2" stroke-width="2" marker-end="url(#arrow2)"/>
+    <text x="540" y="92" font-size="9" fill="#0891B2" font-weight="500">1:N</text>
+
+    <!-- Operation -->
+    <rect x="580" y="30" width="210" height="180" rx="10" fill="white" stroke="#15803D" stroke-width="2"/>
+    <rect x="580" y="30" width="210" height="36" rx="10" fill="#15803D"/>
+    <rect x="580" y="50" width="210" height="16" fill="#15803D"/>
+    <text x="685" y="54" text-anchor="middle" font-size="14" font-weight="700" fill="white">Operation</text>
+    <text x="594" y="90" font-size="11" fill="#15803D" font-weight="600">id</text><text x="660" y="90" font-size="11" fill="#64748B">cuid PK</text>
+    <text x="594" y="110" font-size="11" fill="#15803D" font-weight="600">companyId</text><text x="670" y="110" font-size="11" fill="#64748B">FK</text>
+    <text x="594" y="130" font-size="11" fill="#334155">type</text><text x="660" y="130" font-size="11" fill="#64748B">FACT|CONF|PAGO</text>
+    <text x="594" y="150" font-size="11" fill="#334155">amount</text><text x="660" y="150" font-size="11" fill="#64748B">Decimal(14,2)</text>
+    <text x="594" y="170" font-size="11" fill="#334155">date / status</text><text x="690" y="170" font-size="11" fill="#64748B">DateTime / Enum</text>
+    <text x="594" y="190" font-size="11" fill="#334155">daysPastDue</text><text x="680" y="190" font-size="11" fill="#64748B">Int</text>
+
+    <!-- Arrow Company → Interaction -->
+    <line x1="520" y1="280" x2="580" y2="280" stroke="#0891B2" stroke-width="2" marker-end="url(#arrow2)"/>
+    <text x="540" y="272" font-size="9" fill="#0891B2" font-weight="500">1:N</text>
+
+    <!-- Interaction -->
+    <rect x="580" y="230" width="210" height="150" rx="10" fill="white" stroke="#7C3AED" stroke-width="2"/>
+    <rect x="580" y="230" width="210" height="36" rx="10" fill="#7C3AED"/>
+    <rect x="580" y="250" width="210" height="16" fill="#7C3AED"/>
+    <text x="685" y="254" text-anchor="middle" font-size="14" font-weight="700" fill="white">Interaction</text>
+    <text x="594" y="290" font-size="11" fill="#7C3AED" font-weight="600">id</text><text x="660" y="290" font-size="11" fill="#64748B">cuid PK</text>
+    <text x="594" y="310" font-size="11" fill="#7C3AED" font-weight="600">companyId</text><text x="670" y="310" font-size="11" fill="#64748B">FK</text>
+    <text x="594" y="330" font-size="11" fill="#334155">channel</text><text x="660" y="330" font-size="11" fill="#64748B">WA|CALL|...</text>
+    <text x="594" y="350" font-size="11" fill="#334155">date</text><text x="660" y="350" font-size="11" fill="#64748B">DateTime</text>
+    <text x="594" y="370" font-size="11" fill="#334155">summary</text><text x="660" y="370" font-size="11" fill="#64748B">Text</text>
+
+    <defs>
+      <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#0891B2"/>
+      </marker>
+    </defs>
+  </svg>
+
+  <h3>Índices</h3>
+  <ul>
+    <li><code>Company.kamId</code> — Filtrar cartera por KAM (query principal)</li>
+    <li><code>Operation.(companyId, date)</code> — Ordenar operaciones por fecha para cálculo de señales</li>
+    <li><code>Interaction.(companyId, date)</code> — Timeline ordenado cronológicamente</li>
+    <li><code>Kam.email</code> — unique, lookup en login y JWT validation</li>
+    <li><code>Company.taxId</code> — unique, integridad de datos</li>
+  </ul>
+
+  <h3>Nota sobre campos reservados</h3>
+  <p>El schema incluye campos preparados para Part 2 (<code>healthScore</code>, <code>aiSummary</code>, <code>recommendedActions</code>, <code>aiGeneratedAt</code>) que actualmente no se usan — las señales se calculan on-read via el Signals Engine.</p>
+</div>
+
+<!-- ========== SLIDE 4: PRODUCT DECISIONS ========== -->
+<div class="page">
+  <h2><span class="num">04</span>Decisiones de Producto</h2>
+
+  <h3>Qué mostramos y por qué</h3>
+
+  <div class="decision-row">
+    <div class="decision-icon" style="background:#EEF2FF; color:#4F46E5;">📊</div>
+    <div class="decision-content">
+      <strong>Dashboard con KPIs arriba + tabla abajo</strong>
+      <p>Los KAMs necesitan visión rápida de su cartera. 4 KPIs (total empresas, volumen 90d, en riesgo, oportunidades) dan contexto inmediato sin scroll. La tabla debajo permite drill-down.</p>
+    </div>
+  </div>
+
+  <div class="decision-row">
+    <div class="decision-icon" style="background:#FEF3C7; color:#B45309;">⚡</div>
+    <div class="decision-content">
+      <strong>Señales determinísticas calculadas on-read</strong>
+      <p>Churn risk, expansion y priority se calculan con reglas explícitas basadas en actividad real (días sin operar, tendencia de volumen, mora, SOW, utilización de línea). No hay ML, lo que hace las señales auditables y predecibles para un evaluador técnico.</p>
+    </div>
+  </div>
+
+  <div class="decision-row">
+    <div class="decision-icon" style="background:#EDE9FE; color:#7C3AED;">🤖</div>
+    <div class="decision-content">
+      <strong>AI Summary generado por reglas</strong>
+      <p>El "análisis inteligente" en el detalle de empresa usa template strings condicionales basados en las señales. Simula lo que haría un LLM pero es determinístico, sin costos de API y sin latencia extra. Preparado para reemplazarse por GPT/Claude en Part 2.</p>
+    </div>
+  </div>
+
+  <div class="decision-row">
+    <div class="decision-icon" style="background:#FEE2E2; color:#DC2626;">🔒</div>
+    <div class="decision-content">
+      <strong>Aislamiento por KAM con JWT</strong>
+      <p>Cada request incluye el token JWT. El backend extrae el kamId y filtra todas las queries. Un KAM nunca ve empresas de otro. Esto es core para el caso de uso — un CRM sin aislamiento no sirve.</p>
+    </div>
+  </div>
+
+  <div class="decision-row">
+    <div class="decision-icon" style="background:#DCFCE7; color:#15803D;">📈</div>
+    <div class="decision-content">
+      <strong>Gráfico de volumen financiado (12 meses)</strong>
+      <p>En el detalle de empresa, un AreaChart muestra la evolución mensual del volumen financiado. Permite ver tendencias de crecimiento o caída que las métricas numéricas solas no comunican bien.</p>
+    </div>
+  </div>
+
+  <div class="decision-row">
+    <div class="decision-icon" style="background:#ECFEFF; color:#0891B2;">📝</div>
+    <div class="decision-content">
+      <strong>Notas + timeline de interacciones</strong>
+      <p>El KAM puede editar notas y ver el historial de contactos (WhatsApp, call, email, meeting) con resúmenes. Esto es el mínimo para que el CRM sea actionable, no solo un dashboard de lectura.</p>
+    </div>
+  </div>
+
+  <div class="decision-row">
+    <div class="decision-icon" style="background:#F1F5F9; color:#475569;">🎨</div>
+    <div class="decision-content">
+      <strong>Diseño premium CSS-first</strong>
+      <p>En vez de usar Mantine como diseño completo, se usó CSS custom inspirado en Stripe/Linear/Mercury. Bordea los 0-gradientes, spacing generoso, tipografía Inter con tracking tight. Da impresión de producto real, no de prototipo.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 5: WHAT WAS LEFT OUT ========== -->
+<div class="page">
+  <h2><span class="num">05</span>Qué Dejamos Fuera y Por Qué</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Feature</th>
+        <th>Estado</th>
+        <th>Razón</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Resumen con LLM real</strong></td>
+        <td><span class="tag tag-orange">Part 2</span></td>
+        <td>El "análisis inteligente" actual es determinístico (reglas). El schema ya tiene campos <code>aiSummary</code> y <code>recommendedActions</code> listos para integrar un LLM en Part 2.</td>
+      </tr>
+      <tr>
+        <td><strong>CRUD de interacciones</strong></td>
+        <td><span class="tag tag-gray">Deliberado</span></td>
+        <td>El KAM puede ver el timeline pero no crear interacciones desde el CRM. Agregar un formulario con channel+summary era alcanzable, pero se priorizó el pulido visual y las señales.</td>
+      </tr>
+      <tr>
+        <td><strong>Refresh token / token rotation</strong></td>
+        <td><span class="tag tag-gray">Simplificado</span></td>
+        <td>Tokens expiran en 8h. Para una prueba técnica, un access token en localStorage es suficiente. En producción se agregaría refresh token con httpOnly cookies.</td>
+      </tr>
+      <tr>
+        <td><strong>Tests unitarios / e2e</strong></td>
+        <td><span class="tag tag-red">Fuera</span></td>
+        <td>Se priorizó feature-completeness y calidad visual. El signals engine es el candidato ideal para tests unitarios (función pura) — pero el scope de Part 1 no lo requería.</td>
+      </tr>
+      <tr>
+        <td><strong>Paginación</strong></td>
+        <td><span class="tag tag-gray">Innecesario</span></td>
+        <td>Con ~5-6 empresas por KAM en el seed, paginar no aporta. El modelo soporta <code>take</code>/<code>skip</code> en Prisma si escala.</td>
+      </tr>
+      <tr>
+        <td><strong>Búsqueda / filtro por texto</strong></td>
+        <td><span class="tag tag-gray">Deliberado</span></td>
+        <td>Los filtros existentes (riesgo, expansión) y sort (prioridad, volumen, riesgo) cubren los casos de uso principales con 10 empresas. Full-text search sería premature.</td>
+      </tr>
+      <tr>
+        <td><strong>Responsive mobile</strong></td>
+        <td><span class="tag tag-orange">Parcial</span></td>
+        <td>El layout usa CSS Grid y se adapta razonablemente, pero la tabla de empresas está optimizada para desktop. Un KAM trabajará desde su laptop.</td>
+      </tr>
+      <tr>
+        <td><strong>Internacionalización</strong></td>
+        <td><span class="tag tag-gray">Fuera</span></td>
+        <td>Todo está en español (target: equipos KAM en CL/MX). i18n es overhead innecesario para el alcance.</td>
+      </tr>
+      <tr>
+        <td><strong>Rate limiting / throttling</strong></td>
+        <td><span class="tag tag-gray">Fuera</span></td>
+        <td>Sería necesario en producción pero irrelevante con 2 usuarios demo.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="divider"></div>
+
+  <h3>Criterio de priorización</h3>
+  <p>Se priorizó lo que demuestra criterio de producto sobre lo que demuestra completitud técnica. Un evaluador busca: ¿entiende el problema? ¿toma decisiones razonadas? ¿el resultado se ve profesional? Las features que quedaron fuera son las que no moverían la aguja en esas preguntas.</p>
+
+  <div class="grid-2" style="margin-top: 24px;">
+    <div class="card">
+      <div class="card-title">Lo que sí mueve la aguja</div>
+      <ul style="font-size:13px">
+        <li>Señales de negocio bien diseñadas</li>
+        <li>Aislamiento de datos por KAM</li>
+        <li>UI pulida nivel producto real</li>
+        <li>Código limpio y refactorizado</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">Lo que no la mueve (en Part 1)</div>
+      <ul style="font-size:13px">
+        <li>100% test coverage sin features</li>
+        <li>Refresh tokens para 2 usuarios</li>
+        <li>Paginación con 10 registros</li>
+        <li>i18n sin usuarios internacionales</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
