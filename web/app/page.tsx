@@ -32,6 +32,12 @@ const RISK_CONFIG: Record<string, { dotClass: string; label: string }> = {
   LOW: { dotClass: "green", label: "Bajo" },
 };
 
+// Churn shown in the list: AI value once enriched, deterministic signal as
+// fallback. Keeps the list consistent with the company detail view.
+function effectiveChurn(c: CompanyListItem): "LOW" | "MEDIUM" | "HIGH" {
+  return c.churnRisk ?? c.signals.churnRisk;
+}
+
 export default function HomePage() {
   const { kam, token, status, logout } = useAuth();
   const router = useRouter();
@@ -73,7 +79,7 @@ export default function HomePage() {
   const kpis = useMemo(() => {
     const total = companies.length;
     const totalVolume = companies.reduce((s, c) => s + c.signals.financedVolume90d, 0);
-    const atRisk = companies.filter((c) => c.signals.churnRisk === "HIGH").length;
+    const atRisk = companies.filter((c) => effectiveChurn(c) === "HIGH").length;
     const expansion = companies.filter((c) => c.signals.expansion).length;
     return { total, totalVolume, atRisk, expansion };
   }, [companies]);
@@ -250,8 +256,8 @@ export default function HomePage() {
 
                 <div>
                   <span className="badge badge-gray" style={{ gap: 6 }}>
-                    <span className={`badge-dot ${RISK_CONFIG[c.signals.churnRisk]?.dotClass}`} />
-                    {RISK_CONFIG[c.signals.churnRisk]?.label || c.signals.churnRisk}
+                    <span className={`badge-dot ${RISK_CONFIG[effectiveChurn(c)]?.dotClass}`} />
+                    {RISK_CONFIG[effectiveChurn(c)]?.label || effectiveChurn(c)}
                   </span>
                 </div>
 

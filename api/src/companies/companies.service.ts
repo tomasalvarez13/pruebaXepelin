@@ -39,9 +39,15 @@ export class CompaniesService {
       };
     });
 
+    // Effective churn: AI value once enriched, deterministic signal as fallback.
+    // Keeps list filtering/sorting consistent with what each row shows.
+    const effectiveChurn = (r: (typeof results)[number]) =>
+      (r as { churnRisk?: 'LOW' | 'MEDIUM' | 'HIGH' | null }).churnRisk ??
+      r.signals.churnRisk;
+
     let filtered = results;
     if (filter === 'at_risk') {
-      filtered = results.filter((r) => r.signals.churnRisk === 'HIGH');
+      filtered = results.filter((r) => effectiveChurn(r) === 'HIGH');
     } else if (filter === 'expansion') {
       filtered = results.filter((r) => r.signals.expansion);
     }
@@ -50,7 +56,7 @@ export class CompaniesService {
     const riskOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 };
 
     if (sort === 'risk') {
-      filtered.sort((a, b) => riskOrder[a.signals.churnRisk] - riskOrder[b.signals.churnRisk]);
+      filtered.sort((a, b) => riskOrder[effectiveChurn(a)] - riskOrder[effectiveChurn(b)]);
     } else if (sort === 'volume') {
       filtered.sort((a, b) => b.signals.financedVolume90d - a.signals.financedVolume90d);
     } else {
